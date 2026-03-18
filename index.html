@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HADÍK v PRAHE - Hard Rock Cafe Edition</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Press Start 2P', monospace;
+    overflow: hidden;
+  }
+
+  #arcade-cabinet {
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border: 8px solid #333;
+    border-radius: 20px 20px 10px 10px;
+    padding: 20px;
+    box-shadow:
+      0 0 40px rgba(233, 69, 96, 0.3),
+      inset 0 0 60px rgba(0,0,0,0.5),
+      0 20px 60px rgba(0,0,0,0.8);
+    position: relative;
+  }
+
+  #arcade-cabinet::before {
+    content: '★ HARD ROCK CAFE PRAHA ★';
+    display: block;
+    text-align: center;
+    color: #e94560;
+    font-size: 14px;
+    padding: 8px 0;
+    text-shadow: 0 0 10px #e94560, 0 0 20px #e94560;
+    letter-spacing: 2px;
+    animation: neonFlicker 3s infinite;
+  }
+
+  @keyframes neonFlicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.6; }
+    97% { opacity: 1; }
+    98% { opacity: 0.4; }
+  }
+
+  #screen-frame {
+    background: #000;
+    border: 4px solid #555;
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    position: relative;
+  }
+
+  #screen-frame::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+    border-radius: 8px;
+  }
+
+  canvas {
+    display: block;
+    border-radius: 4px;
+    image-rendering: pixelated;
+  }
+
+  #hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+    color: #e94560;
+    font-size: 10px;
+  }
+
+  #hud span {
+    text-shadow: 0 0 5px currentColor;
+  }
+
+  #lives-display { color: #ffd700; }
+  #level-display { color: #00ff88; }
+
+  #controls-panel {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    padding: 15px 0 5px;
+    align-items: center;
+  }
+
+  .dpad {
+    display: grid;
+    grid-template-columns: 40px 40px 40px;
+    grid-template-rows: 40px 40px 40px;
+    gap: 2px;
+  }
+
+  .dpad-btn {
+    background: #2a2a3e;
+    border: 2px solid #444;
+    border-radius: 6px;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    transition: all 0.1s;
+  }
+
+  .dpad-btn:active, .dpad-btn.pressed {
+    background: #e94560;
+    color: #fff;
+    border-color: #ff6b81;
+    box-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+  }
+
+  .dpad-center {
+    background: #1a1a2e;
+    border: 2px solid #333;
+    border-radius: 50%;
+  }
+
+  .dpad-empty { background: transparent; border: none; }
+
+  .action-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .action-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border: 3px solid #555;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    cursor: pointer;
+    color: #fff;
+    text-shadow: 0 0 5px currentColor;
+  }
+
+  #btn-start {
+    background: radial-gradient(circle, #e94560, #c0392b);
+    box-shadow: 0 4px 0 #8b0000, 0 0 15px rgba(233, 69, 96, 0.3);
+  }
+
+  #btn-start:active {
+    box-shadow: 0 1px 0 #8b0000;
+    transform: translateY(3px);
+  }
+
+  #btn-pause {
+    background: radial-gradient(circle, #3498db, #2980b9);
+    box-shadow: 0 4px 0 #1a5276, 0 0 15px rgba(52, 152, 219, 0.3);
+    width: 40px;
+    height: 40px;
+  }
+
+  #credit {
+    text-align: center;
+    color: #444;
+    font-size: 7px;
+    padding-top: 10px;
+    letter-spacing: 1px;
+  }
+
+  #credit span {
+    color: #e94560;
+    animation: blink 1.5s infinite;
+  }
+
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  @media (max-width: 600px) {
+    #arcade-cabinet { padding: 10px; border-width: 4px; }
+    #arcade-cabinet::before { font-size: 9px; }
+    #hud { font-size: 8px; }
+    canvas { width: 100% !important; height: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="arcade-cabinet">
+  <div id="screen-frame">
+    <canvas id="game" width="600" height="480"></canvas>
+  </div>
+  <div id="hud">
+    <span id="score-display">SCORE: 0</span>
+    <span id="level-display">LEVEL 1</span>
+    <span id="lives-display">♥♥♥♥♥</span>
+  </div>
+  <div id="controls-panel">
+    <div class="dpad">
+      <div class="dpad-empty"></div>
+      <button class="dpad-btn" id="btn-up">▲</button>
+      <div class="dpad-empty"></div>
+      <button class="dpad-btn" id="btn-left">◄</button>
+      <div class="dpad-btn dpad-center"></div>
+      <button class="dpad-btn" id="btn-right">►</button>
+      <div class="dpad-empty"></div>
+      <button class="dpad-btn" id="btn-down">▼</button>
+      <div class="dpad-empty"></div>
+    </div>
+    <div class="action-buttons">
+      <button class="action-btn" id="btn-pause">| |</button>
+      <button class="action-btn" id="btn-start">START</button>
+    </div>
+  </div>
+  <div id="credit">INSERT COIN <span>▶</span> PRESS START</div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const TILE = 24;
+const COLS = Math.floor(W / TILE);
+const ROWS = Math.floor(H / TILE);
+
+// Game state
+let state = 'title';
+let score = 0;
+let lives = 5;
+let level = 1;
+let snake = [];
+let dir = { x: 1, y: 0 };
+let nextDir = { x: 1, y: 0 };
+let corn = [];
+let enemies = [];
+let filippo = null; // Filippo is ALWAYS present
+let boss = null;
+let bossHP = 0;
+let bossMaxHP = 0;
+let frameCount = 0;
+let mouthOpen = true;
+let powerMode = false;
+let powerTimer = 0;
+let shakeTimer = 0;
+let particles = [];
+let deathTimer = 0;
+let levelCompleteTimer = 0;
+let gameSpeed = 14; // VERY SLOW
+let cornEaten = 0;
+let totalCorn = 0;
+
+// Filippo speech bubbles
+let filippoBubble = '';
+let filippoBubbleTimer = 0;
+const FILIPPO_QUOTES = [
+  'GRANNO DURO!',
+  'GRANNO DURO!!',
+  'GRANNO DUROOOO!',
+  'GRAAANNO DURO!',
+  'G R A N N O\nD U R O ! !',
+  'DURO! DURO!',
+  'GRANNO!!!',
+  'MOLTO DURO!',
+  'DURISSIMO!'
+];
+
+// Walls per level
+const LEVEL_WALLS = [
+  // Level 1: Simple border + HRC logo outline
+  (walls) => {
+    for (let x = 0; x < COLS; x++) {
+      walls.add(`${x},0`);
+      walls.add(`${x},${ROWS-1}`);
+    }
+    for (let y = 0; y < ROWS; y++) {
+      walls.add(`0,${y}`);
+      walls.add(`${COLS-1},${y}`);
+    }
+    // Small inner obstacles
+    for (let y = 8; y <= 11; y++) {
+      walls.add(`8,${y}`);
+      walls.add(`16,${y}`);
+    }
+  },
+  // Level 2: Prague bridge pillars
+  (walls) => {
+    for (let x = 0; x < COLS; x++) {
+      walls.add(`${x},0`);
+      walls.add(`${x},${ROWS-1}`);
+    }
+    for (let y = 0; y < ROWS; y++) {
+      walls.add(`0,${y}`);
+      walls.add(`${COLS-1},${y}`);
+    }
+    // Bridge pillars - fewer
+    for (let i = 0; i < 3; i++) {
+      const bx = 6 + i * 6;
+      for (let y = 4; y <= 6; y++) walls.add(`${bx},${y}`);
+      for (let y = 13; y <= 15; y++) walls.add(`${bx},${y}`);
+    }
+  },
+  // Level 3: Boss arena - open
+  (walls) => {
+    for (let x = 0; x < COLS; x++) {
+      walls.add(`${x},0`);
+      walls.add(`${x},${ROWS-1}`);
+    }
+    for (let y = 0; y < ROWS; y++) {
+      walls.add(`0,${y}`);
+      walls.add(`${COLS-1},${y}`);
+    }
+    // Just small corner blocks
+    for (let i = 0; i < 2; i++) {
+      walls.add(`${2+i},2`); walls.add(`2,${2+i}`);
+      walls.add(`${COLS-3-i},2`); walls.add(`${COLS-3},${2+i}`);
+      walls.add(`${2+i},${ROWS-3}`); walls.add(`2,${ROWS-3-i}`);
+      walls.add(`${COLS-3-i},${ROWS-3}`); walls.add(`${COLS-3},${ROWS-3-i}`);
+    }
+  }
+];
+
+let walls = new Set();
+
+// Audio synth
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(freq, dur, type = 'square', vol = 0.15) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = vol;
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + dur);
+}
+
+function playEat() { playSound(880, 0.08); playSound(1200, 0.06); }
+function playDie() {
+  playSound(400, 0.15); setTimeout(() => playSound(300, 0.15), 100);
+  setTimeout(() => playSound(200, 0.2), 200);
+}
+function playLevelUp() {
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playSound(f, 0.15, 'square', 0.12), i * 100));
+}
+function playPower() { playSound(600, 0.1); playSound(900, 0.08); }
+function playBossHit() { playSound(150, 0.2, 'sawtooth', 0.2); }
+function playGranno() {
+  // Guitar riff sound
+  [330, 440, 550, 660].forEach((f, i) => setTimeout(() => playSound(f, 0.12, 'sawtooth', 0.08), i * 60));
+}
+
+// Initialize level
+function initLevel(lvl) {
+  level = lvl;
+  walls = new Set();
+  LEVEL_WALLS[lvl - 1](walls);
+
+  snake = [
+    { x: 3, y: Math.floor(ROWS / 2) },
+    { x: 2, y: Math.floor(ROWS / 2) },
+    { x: 1, y: Math.floor(ROWS / 2) }
+  ];
+  dir = { x: 1, y: 0 };
+  nextDir = { x: 1, y: 0 };
+
+  // Place corn - more of it, more power-ups
+  corn = [];
+  cornEaten = 0;
+  const occupied = new Set([...walls]);
+  snake.forEach(s => occupied.add(`${s.x},${s.y}`));
+
+  for (let y = 1; y < ROWS - 1; y++) {
+    for (let x = 1; x < COLS - 1; x++) {
+      if (!occupied.has(`${x},${y}`) && Math.random() < 0.25) {
+        corn.push({ x, y, power: Math.random() < 0.15 }); // 15% power corn = easy mode
+        occupied.add(`${x},${y}`);
+      }
+    }
+  }
+  totalCorn = corn.length;
+
+  // FEWER enemies, SUPER SLOW
+  enemies = [];
+  const enemyCount = lvl === 1 ? 2 : lvl === 2 ? 3 : 2;
+  for (let i = 0; i < enemyCount; i++) {
+    let ex, ey;
+    do {
+      ex = 2 + Math.floor(Math.random() * (COLS - 4));
+      ey = 2 + Math.floor(Math.random() * (ROWS - 4));
+    } while (occupied.has(`${ex},${ey}`) || (Math.abs(ex - snake[0].x) < 8 && Math.abs(ey - snake[0].y) < 8));
+
+    enemies.push({
+      x: ex, y: ey,
+      type: i % 2 === 0 ? 'beer' : 'don',
+      dir: { x: [1, -1, 0, 0][Math.floor(Math.random() * 4)], y: [0, 0, 1, -1][Math.floor(Math.random() * 4)] },
+      moveTimer: 0,
+      scared: false
+    });
+  }
+
+  // FILIPPO is always present! Start him far from player
+  filippo = {
+    x: COLS - 6,
+    y: 4,
+    moveTimer: 0,
+    guitarFrame: 0,
+    facingLeft: true,
+    bubbleTimer: 0,
+    bubbleText: '',
+    phoneWave: 0
+  };
+
+  // Boss mode on level 3
+  boss = null;
+  if (lvl === 3) {
+    bossHP = 6; // easier boss
+    bossMaxHP = 6;
+    boss = true; // filippo becomes the boss
+  }
+
+  // VERY SLOW game speed
+  gameSpeed = lvl === 1 ? 14 : lvl === 2 ? 12 : 11;
+  powerMode = false;
+  powerTimer = 0;
+  particles = [];
+  filippoBubble = '';
+  filippoBubbleTimer = 0;
+
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('score-display').textContent = `SCORE: ${score}`;
+  document.getElementById('level-display').textContent = boss ? `BOSS: ${'█'.repeat(Math.ceil(bossHP / bossMaxHP * 6))}${'░'.repeat(6 - Math.ceil(bossHP / bossMaxHP * 6))}` : `LEVEL ${level}`;
+  document.getElementById('lives-display').textContent = '♥'.repeat(Math.max(0, lives));
+}
+
+function spawnParticles(x, y, color, count = 5) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: x * TILE + TILE / 2,
+      y: y * TILE + TILE / 2,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4,
+      life: 20 + Math.random() * 15,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+// Input
+const keys = {};
+document.addEventListener('keydown', (e) => {
+  keys[e.key] = true;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+
+  if (state === 'title' || state === 'gameOver' || state === 'victory') {
+    if (e.key === 'Enter' || e.key === ' ') startGame();
+    return;
+  }
+  if (state === 'playing') {
+    if (e.key === 'ArrowUp' && dir.y !== 1) nextDir = { x: 0, y: -1 };
+    if (e.key === 'ArrowDown' && dir.y !== -1) nextDir = { x: 0, y: 1 };
+    if (e.key === 'ArrowLeft' && dir.x !== 1) nextDir = { x: -1, y: 0 };
+    if (e.key === 'ArrowRight' && dir.x !== -1) nextDir = { x: 1, y: 0 };
+    if (e.key === 'p' || e.key === 'Escape') { state = 'paused'; }
+  } else if (state === 'paused') {
+    if (e.key === 'p' || e.key === 'Escape' || e.key === ' ') { state = 'playing'; }
+  }
+});
+document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+// D-pad buttons
+function setupButton(id, action) {
+  const btn = document.getElementById(id);
+  btn.addEventListener('mousedown', (e) => { e.preventDefault(); action(); btn.classList.add('pressed'); });
+  btn.addEventListener('mouseup', () => btn.classList.remove('pressed'));
+  btn.addEventListener('mouseleave', () => btn.classList.remove('pressed'));
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); action(); btn.classList.add('pressed'); });
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); btn.classList.remove('pressed'); });
+}
+
+setupButton('btn-up', () => { if (state === 'playing' && dir.y !== 1) nextDir = { x: 0, y: -1 }; });
+setupButton('btn-down', () => { if (state === 'playing' && dir.y !== -1) nextDir = { x: 0, y: 1 }; });
+setupButton('btn-left', () => { if (state === 'playing' && dir.x !== 1) nextDir = { x: -1, y: 0 }; });
+setupButton('btn-right', () => { if (state === 'playing' && dir.x !== -1) nextDir = { x: 1, y: 0 }; });
+
+document.getElementById('btn-start').addEventListener('click', () => {
+  if (state === 'title' || state === 'gameOver' || state === 'victory') startGame();
+  else if (state === 'paused') state = 'playing';
+});
+document.getElementById('btn-pause').addEventListener('click', () => {
+  if (state === 'playing') state = 'paused';
+  else if (state === 'paused') state = 'playing';
+});
+
+function startGame() {
+  audioCtx.resume();
+  score = 0;
+  lives = 5;
+  state = 'playing';
+  initLevel(1);
+}
+
+// ===================== DRAWING =====================
+
+function drawWalls() {
+  walls.forEach(w => {
+    const [x, y] = w.split(',').map(Number);
+    const isEdge = x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1;
+    ctx.fillStyle = isEdge ? '#2a1a3e' : '#3d1f5c';
+    ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+    ctx.strokeStyle = isEdge ? '#1a0a2e' : '#2a0f4c';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(x * TILE + 1, y * TILE + 1, TILE - 2, 2);
+  });
+}
+
+function drawSnake() {
+  snake.forEach((seg, i) => {
+    const isHead = i === 0;
+    const px = seg.x * TILE;
+    const py = seg.y * TILE;
+
+    if (isHead) {
+      ctx.fillStyle = powerMode ? '#ff6b6b' : '#ffd700';
+      ctx.beginPath();
+      const cx = px + TILE / 2;
+      const cy = py + TILE / 2;
+      const r = TILE / 2 - 1;
+
+      if (mouthOpen) {
+        let startAngle, endAngle;
+        if (dir.x === 1) { startAngle = 0.25; endAngle = Math.PI * 2 - 0.25; }
+        else if (dir.x === -1) { startAngle = Math.PI + 0.25; endAngle = Math.PI - 0.25; }
+        else if (dir.y === -1) { startAngle = -Math.PI / 2 + 0.25; endAngle = -Math.PI / 2 - 0.25; }
+        else { startAngle = Math.PI / 2 + 0.25; endAngle = Math.PI / 2 - 0.25; }
+        ctx.arc(cx, cy, r, startAngle, endAngle);
+      } else {
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      }
+      ctx.lineTo(cx, cy);
+      ctx.fill();
+
+      // Eye
+      ctx.fillStyle = '#000';
+      let eyeX = cx, eyeY = cy - 4;
+      if (dir.x === 1) eyeX = cx + 2;
+      else if (dir.x === -1) eyeX = cx - 2;
+      else if (dir.y === 1) { eyeX = cx - 4; eyeY = cy + 2; }
+      else { eyeX = cx - 4; eyeY = cy - 2; }
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const t = i / snake.length;
+      ctx.fillStyle = powerMode
+        ? `rgb(${200 - t * 100}, ${50 + t * 30}, ${50 + t * 30})`
+        : `rgb(${Math.floor(255 - t * 100)}, ${Math.floor(200 - t * 150)}, 0)`;
+      const shrink = 2 + t * 2;
+      ctx.fillRect(px + shrink, py + shrink, TILE - shrink * 2, TILE - shrink * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(px + shrink, py + shrink, TILE - shrink * 2, 2);
+    }
+  });
+}
+
+function drawCorn() {
+  corn.forEach(c => {
+    const px = c.x * TILE;
+    const py = c.y * TILE;
+
+    if (c.power) {
+      const glow = Math.sin(frameCount * 0.15) * 0.3 + 0.7;
+      ctx.fillStyle = `rgba(255, 215, 0, ${glow})`;
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + TILE / 2, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + TILE / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#f0c040';
+      ctx.beginPath();
+      ctx.ellipse(px + TILE / 2, py + TILE / 2, 4, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#d4a020';
+      ctx.beginPath();
+      ctx.ellipse(px + TILE / 2, py + TILE / 2 + 1, 3, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+}
+
+function drawEnemies() {
+  enemies.forEach(e => {
+    const px = e.x * TILE;
+    const py = e.y * TILE;
+
+    if (powerMode && e.scared) {
+      ctx.fillStyle = '#3355ff';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Scared face
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(px + 7, py + 8, 3, 3);
+      ctx.fillRect(px + 14, py + 8, 3, 3);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px + 7, py + 16);
+      ctx.lineTo(px + 10, py + 14);
+      ctx.lineTo(px + 13, py + 16);
+      ctx.lineTo(px + 17, py + 14);
+      ctx.stroke();
+      return;
+    }
+
+    if (e.type === 'beer') {
+      // Beer mug
+      ctx.fillStyle = '#daa520';
+      ctx.fillRect(px + 5, py + 4, 14, 16);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(px + 5, py + 4, 14, 5);
+      // Foam bubbles
+      ctx.beginPath();
+      ctx.arc(px + 8, py + 3, 3, 0, Math.PI * 2);
+      ctx.arc(px + 14, py + 2, 3, 0, Math.PI * 2);
+      ctx.arc(px + 11, py + 1, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Handle
+      ctx.strokeStyle = '#daa520';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(px + 21, py + 12, 5, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      // Face
+      ctx.fillStyle = '#000';
+      ctx.fillRect(px + 8, py + 11, 2, 2);
+      ctx.fillRect(px + 14, py + 11, 2, 2);
+      // Smile
+      ctx.beginPath();
+      ctx.arc(px + 12, py + 14, 3, 0, Math.PI);
+      ctx.stroke();
+    } else {
+      // DON mycotoxin
+      ctx.fillStyle = '#44cc44';
+      ctx.beginPath();
+      ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Drip effect
+      ctx.fillStyle = '#33aa33';
+      ctx.beginPath();
+      ctx.ellipse(px + 8, py + TILE + 2, 2, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Skull
+      ctx.fillStyle = '#000';
+      ctx.fillRect(px + 7, py + 7, 3, 4);
+      ctx.fillRect(px + 14, py + 7, 3, 4);
+      ctx.fillRect(px + 10, py + 14, 4, 2);
+      // DON label
+      ctx.fillStyle = '#ff0';
+      ctx.font = '7px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('DON', px + TILE / 2, py + TILE - 1);
+    }
+  });
+}
+
+// ===================== FILIPPO DRAWING =====================
+function drawFilippo() {
+  if (!filippo) return;
+
+  const px = filippo.x * TILE;
+  const py = filippo.y * TILE;
+  const isBoss = !!boss;
+  const scale = isBoss ? 3 : 2; // boss is 3x3 tiles, normal is 2x2
+  const bw = TILE * scale;
+  const bh = TILE * scale;
+  const cx = px + bw / 2;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx, py + bh - 2, bw / 2 - 4, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // BODY - Black leather jacket (Hard Rock style!)
+  const bodyTop = py + TILE * (isBoss ? 1.2 : 0.8);
+  ctx.fillStyle = filippo.flashTimer > 0 ? '#fff' : '#1a1a1a';
+  ctx.fillRect(px + 4, bodyTop, bw - 8, bh - TILE * (isBoss ? 1.5 : 1) - 4);
+  // Jacket details
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, bodyTop);
+  ctx.lineTo(cx, bodyTop + bh * 0.4);
+  ctx.stroke();
+  // Belt
+  ctx.fillStyle = '#444';
+  ctx.fillRect(px + 6, bodyTop + bh * 0.35, bw - 12, 3);
+  ctx.fillStyle = '#daa520';
+  ctx.fillRect(cx - 3, bodyTop + bh * 0.35, 6, 3); // belt buckle
+
+  // LEGS - jeans
+  ctx.fillStyle = '#2244aa';
+  ctx.fillRect(px + 6, bodyTop + bh * 0.4, (bw - 12) / 2 - 1, bh * 0.3);
+  ctx.fillRect(cx + 1, bodyTop + bh * 0.4, (bw - 12) / 2 - 1, bh * 0.3);
+
+  // HEAD
+  const headR = isBoss ? TILE * 0.8 : TILE * 0.55;
+  const headY = py + (isBoss ? TILE : TILE * 0.6);
+  ctx.fillStyle = filippo.flashTimer > 0 ? '#ffa' : '#f0c8a0';
+  ctx.beginPath();
+  ctx.arc(cx, headY, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // LONG HAIR!! - flowing down both sides
+  ctx.fillStyle = '#1a0a00'; // dark brown/black long hair
+  // Top hair
+  ctx.beginPath();
+  ctx.arc(cx, headY - 2, headR + 2, Math.PI * 0.85, Math.PI * 2.15);
+  ctx.fill();
+  // Left hair strand - long, going down past shoulders
+  ctx.beginPath();
+  ctx.moveTo(cx - headR - 1, headY);
+  ctx.quadraticCurveTo(cx - headR - 4, headY + headR * 1.5, cx - headR + 2, bodyTop + bh * 0.35);
+  ctx.lineTo(cx - headR + 5, headY + 2);
+  ctx.fill();
+  // Right hair strand
+  ctx.beginPath();
+  ctx.moveTo(cx + headR + 1, headY);
+  ctx.quadraticCurveTo(cx + headR + 4, headY + headR * 1.5, cx + headR - 2, bodyTop + bh * 0.35);
+  ctx.lineTo(cx + headR - 5, headY + 2);
+  ctx.fill();
+  // Extra hair strands for flow effect
+  const hairWave = Math.sin(frameCount * 0.08) * 2;
+  ctx.beginPath();
+  ctx.moveTo(cx - headR, headY + 3);
+  ctx.quadraticCurveTo(cx - headR - 3 + hairWave, headY + headR * 2, cx - headR + 6, bodyTop + bh * 0.3);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#2a1500';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + headR, headY + 3);
+  ctx.quadraticCurveTo(cx + headR + 3 - hairWave, headY + headR * 2, cx + headR - 6, bodyTop + bh * 0.3);
+  ctx.stroke();
+
+  // EYES
+  ctx.fillStyle = '#000';
+  const eyeY = headY + (isBoss ? 2 : 0);
+  const eyeSpread = isBoss ? 8 : 5;
+  ctx.beginPath();
+  ctx.arc(cx - eyeSpread, eyeY, isBoss ? 2.5 : 2, 0, Math.PI * 2);
+  ctx.arc(cx + eyeSpread, eyeY, isBoss ? 2.5 : 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyebrows (intense!)
+  ctx.strokeStyle = '#1a0a00';
+  ctx.lineWidth = isBoss ? 2.5 : 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx - eyeSpread - 4, eyeY - 5);
+  ctx.lineTo(cx - eyeSpread + 3, eyeY - 3);
+  ctx.moveTo(cx + eyeSpread + 4, eyeY - 5);
+  ctx.lineTo(cx + eyeSpread - 3, eyeY - 3);
+  ctx.stroke();
+
+  // Mouth - shouting or smirking
+  if (filippo.bubbleTimer > 0) {
+    // Open mouth shouting
+    ctx.fillStyle = '#c00';
+    ctx.beginPath();
+    ctx.ellipse(cx, eyeY + (isBoss ? 12 : 8), isBoss ? 5 : 3, isBoss ? 4 : 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(cx - 3, eyeY + (isBoss ? 9 : 6), 6, 1); // teeth
+  } else {
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(cx, eyeY + (isBoss ? 10 : 7), 3, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+  }
+
+  // GUITAR! - hanging from shoulder, being played
+  const guitarX = filippo.facingLeft ? px + 2 : px + bw - TILE + 2;
+  const guitarY = bodyTop + 5;
+  const strum = Math.sin(frameCount * 0.2) * 2; // strumming animation
+
+  // Guitar neck
+  ctx.fillStyle = '#8B4513';
+  ctx.save();
+  ctx.translate(guitarX + 8, guitarY);
+  ctx.rotate(filippo.facingLeft ? -0.4 + strum * 0.02 : 0.4 - strum * 0.02);
+  ctx.fillRect(-2, -TILE * 0.8, 4, TILE * 0.9);
+  // Tuning pegs
+  ctx.fillStyle = '#ddd';
+  ctx.fillRect(-4, -TILE * 0.8, 8, 3);
+  ctx.restore();
+
+  // Guitar body
+  ctx.fillStyle = '#cc2200'; // Red guitar!
+  ctx.beginPath();
+  ctx.ellipse(guitarX + 8, guitarY + 10, 10, 12 + strum, filippo.facingLeft ? -0.2 : 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Sound hole
+  ctx.fillStyle = '#1a0000';
+  ctx.beginPath();
+  ctx.arc(guitarX + 8, guitarY + 10, 4, 0, Math.PI * 2);
+  ctx.fill();
+  // Strings
+  ctx.strokeStyle = '#ddd';
+  ctx.lineWidth = 0.5;
+  for (let s = -2; s <= 2; s++) {
+    ctx.beginPath();
+    ctx.moveTo(guitarX + 8 + s, guitarY - 8);
+    ctx.lineTo(guitarX + 8 + s, guitarY + 20);
+    ctx.stroke();
+  }
+
+  // Strum effect sparkles
+  if (Math.abs(strum) > 1.5) {
+    ctx.fillStyle = '#ffd700';
+    ctx.globalAlpha = 0.7;
+    for (let sp = 0; sp < 3; sp++) {
+      const sx = guitarX + 8 + (Math.random() - 0.5) * 20;
+      const sy = guitarY + 10 + (Math.random() - 0.5) * 15;
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // PHONE IN OTHER HAND! - held up, screen glowing
+  const phoneX = filippo.facingLeft ? px + bw - 8 : px + 2;
+  const phoneY = bodyTop + 2;
+  const phoneWave = Math.sin(frameCount * 0.05) * 1.5;
+
+  // Arm holding phone
+  ctx.strokeStyle = '#f0c8a0';
+  ctx.lineWidth = isBoss ? 4 : 3;
+  ctx.beginPath();
+  ctx.moveTo(filippo.facingLeft ? cx + bw * 0.2 : cx - bw * 0.2, bodyTop + 5);
+  ctx.lineTo(phoneX + 4, phoneY + phoneWave);
+  ctx.stroke();
+
+  // Phone body
+  ctx.fillStyle = '#222';
+  ctx.fillRect(phoneX, phoneY - 4 + phoneWave, 9, 14);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(phoneX, phoneY - 4 + phoneWave, 9, 14);
+  // Phone screen glow
+  ctx.fillStyle = '#4488ff';
+  ctx.fillRect(phoneX + 1, phoneY - 2 + phoneWave, 7, 10);
+  // Screen content hint
+  ctx.fillStyle = '#88bbff';
+  ctx.fillRect(phoneX + 2, phoneY + phoneWave, 5, 1);
+  ctx.fillRect(phoneX + 2, phoneY + 3 + phoneWave, 5, 1);
+  ctx.fillRect(phoneX + 2, phoneY + 5 + phoneWave, 3, 1);
+
+  // NAME TAG
+  ctx.fillStyle = '#e94560';
+  ctx.font = isBoss ? '8px "Press Start 2P"' : '6px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('FILIPPO', cx, py + bh + (isBoss ? 8 : 5));
+  if (isBoss) {
+    ctx.fillText('GUIDETTI', cx, py + bh + 18);
+  }
+
+  // HP bar for boss
+  if (boss && bossHP > 0) {
+    const hpWidth = bw + 20;
+    const hpX = px - 10;
+    const hpY = py - 14;
+    ctx.fillStyle = '#333';
+    ctx.fillRect(hpX, hpY, hpWidth, 8);
+    ctx.fillStyle = bossHP > bossMaxHP * 0.3 ? '#e94560' : '#ff0';
+    ctx.fillRect(hpX + 1, hpY + 1, (hpWidth - 2) * (bossHP / bossMaxHP), 6);
+    ctx.fillStyle = '#fff';
+    ctx.font = '5px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('BOSS', px + bw / 2, hpY - 2);
+  }
+
+  // SPEECH BUBBLE!
+  if (filippo.bubbleTimer > 0) {
+    drawSpeechBubble(cx, py - (isBoss ? 25 : 18), filippo.bubbleText);
+  }
+
+  if (filippo.flashTimer > 0) filippo.flashTimer--;
+}
+
+function drawSpeechBubble(x, y, text) {
+  const lines = text.split('\n');
+  const lineHeight = 11;
+  const maxWidth = Math.max(...lines.map(l => l.length)) * 7 + 16;
+  const totalHeight = lines.length * lineHeight + 12;
+  const bx = Math.max(5, Math.min(x - maxWidth / 2, W - maxWidth - 5));
+  const by = Math.max(5, y - totalHeight);
+
+  // Bubble body
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, maxWidth, totalHeight, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  // Bubble tail
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(x - 5, by + totalHeight);
+  ctx.lineTo(x, by + totalHeight + 10);
+  ctx.lineTo(x + 5, by + totalHeight);
+  ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - 6, by + totalHeight - 1);
+  ctx.lineTo(x, by + totalHeight + 10);
+  ctx.lineTo(x + 6, by + totalHeight - 1);
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = '#e94560';
+  ctx.font = 'bold 9px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  lines.forEach((line, i) => {
+    // Shake effect for excitement
+    const shake = Math.sin(frameCount * 0.3 + i) * 1.5;
+    ctx.fillText(line, bx + maxWidth / 2 + shake, by + 14 + i * lineHeight);
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / 30;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ===================== ENEMY AI (SUPER EASY) =====================
+function moveEnemies() {
+  enemies.forEach(e => {
+    e.moveTimer++;
+    // VERY SLOW enemies
+    const speed = powerMode ? 25 : (level === 1 ? 20 : level === 2 ? 18 : 16);
+    if (e.moveTimer < speed) return;
+    e.moveTimer = 0;
+    e.scared = powerMode;
+
+    const head = snake[0];
+    let targetDir;
+
+    if (powerMode) {
+      targetDir = { x: Math.sign(e.x - head.x) || 1, y: Math.sign(e.y - head.y) || 1 };
+    } else {
+      // Only 15% chance to chase = super easy
+      if (Math.random() < 0.15) {
+        targetDir = { x: Math.sign(head.x - e.x), y: Math.sign(head.y - e.y) };
+        if (Math.random() < 0.5) targetDir = { x: targetDir.x, y: 0 };
+        else targetDir = { x: 0, y: targetDir.y };
+      } else {
+        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        targetDir = dirs[Math.floor(Math.random() * 4)];
+      }
+    }
+
+    if (targetDir.x === 0 && targetDir.y === 0) targetDir = { x: 1, y: 0 };
+
+    const nx = e.x + targetDir.x;
+    const ny = e.y + targetDir.y;
+
+    if (!walls.has(`${nx},${ny}`) && nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+      e.x = nx;
+      e.y = ny;
+      e.dir = targetDir;
+    } else {
+      const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+      for (const d of dirs) {
+        const nnx = e.x + d.x;
+        const nny = e.y + d.y;
+        if (!walls.has(`${nnx},${nny}`) && nnx >= 0 && nnx < COLS && nny >= 0 && nny < ROWS) {
+          e.x = nnx;
+          e.y = nny;
+          e.dir = d;
+          break;
+        }
+      }
+    }
+  });
+}
+
+// ===================== FILIPPO AI =====================
+function moveFilippo() {
+  if (!filippo) return;
+  filippo.moveTimer++;
+  filippo.guitarFrame++;
+
+  const isBoss = !!boss;
+  // Filippo moves slowly, wandering around
+  const speed = isBoss ? 12 : 18;
+  const fSize = isBoss ? 3 : 2;
+
+  if (filippo.moveTimer >= speed) {
+    filippo.moveTimer = 0;
+
+    const head = snake[0];
+
+    if (isBoss) {
+      // Boss: lazily chase player
+      let dx = Math.sign(head.x - filippo.x - 1);
+      let dy = Math.sign(head.y - filippo.y - 1);
+      if (Math.random() < 0.5) {
+        if (Math.abs(head.x - filippo.x) > Math.abs(head.y - filippo.y)) dy = 0;
+        else dx = 0;
+      }
+      // 30% chance to just wander (easy boss)
+      if (Math.random() < 0.3) {
+        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        const rd = dirs[Math.floor(Math.random() * 4)];
+        dx = rd.x; dy = rd.y;
+      }
+
+      const nx = filippo.x + dx;
+      const ny = filippo.y + dy;
+      let canMove = true;
+      for (let bx = 0; bx < fSize; bx++) {
+        for (let by = 0; by < fSize; by++) {
+          if (walls.has(`${nx + bx},${ny + by}`)) canMove = false;
+        }
+      }
+      if (nx < 1 || nx + fSize - 1 >= COLS - 1 || ny < 1 || ny + fSize - 1 >= ROWS - 1) canMove = false;
+      if (canMove) {
+        if (dx < 0) filippo.facingLeft = true;
+        if (dx > 0) filippo.facingLeft = false;
+        filippo.x = nx;
+        filippo.y = ny;
+      }
+    } else {
+      // Non-boss: random wander, avoid player
+      const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }, { x: 0, y: 0 }];
+      const rd = dirs[Math.floor(Math.random() * dirs.length)];
+      const nx = filippo.x + rd.x;
+      const ny = filippo.y + rd.y;
+      let canMove = true;
+      for (let bx = 0; bx < fSize; bx++) {
+        for (let by = 0; by < fSize; by++) {
+          if (walls.has(`${nx + bx},${ny + by}`)) canMove = false;
+        }
+      }
+      if (nx < 1 || nx + fSize - 1 >= COLS - 1 || ny < 1 || ny + fSize - 1 >= ROWS - 1) canMove = false;
+      if (canMove) {
+        if (rd.x < 0) filippo.facingLeft = true;
+        if (rd.x > 0) filippo.facingLeft = false;
+        filippo.x = nx;
+        filippo.y = ny;
+      }
+    }
+
+    // Boss spawns enemies occasionally (but slowly)
+    if (isBoss && Math.random() < 0.15 && enemies.length < 4) {
+      const side = Math.floor(Math.random() * 4);
+      let ex, ey;
+      if (side === 0) { ex = 2; ey = Math.floor(Math.random() * (ROWS - 4)) + 2; }
+      else if (side === 1) { ex = COLS - 3; ey = Math.floor(Math.random() * (ROWS - 4)) + 2; }
+      else if (side === 2) { ex = Math.floor(Math.random() * (COLS - 4)) + 2; ey = 2; }
+      else { ex = Math.floor(Math.random() * (COLS - 4)) + 2; ey = ROWS - 3; }
+      enemies.push({
+        x: ex, y: ey,
+        type: Math.random() < 0.5 ? 'beer' : 'don',
+        dir: { x: 0, y: 1 }, moveTimer: 0, scared: false
+      });
+      spawnParticles(ex, ey, '#e94560', 5);
+    }
+  }
+
+  // GRANNO DURO bubble logic!
+  if (filippo.bubbleTimer > 0) {
+    filippo.bubbleTimer--;
+  } else if (Math.random() < 0.008) { // randomly shout
+    filippo.bubbleText = FILIPPO_QUOTES[Math.floor(Math.random() * FILIPPO_QUOTES.length)];
+    filippo.bubbleTimer = 90 + Math.floor(Math.random() * 60); // show for ~2-3 seconds
+    playGranno();
+  }
+}
+
+// ===================== UPDATE =====================
+function update() {
+  frameCount++;
+
+  if (state !== 'playing') return;
+
+  if (frameCount % 8 === 0) mouthOpen = !mouthOpen;
+
+  // Power mode timer (lasts longer = easy)
+  if (powerMode) {
+    powerTimer--;
+    if (powerTimer <= 0) {
+      powerMode = false;
+      enemies.forEach(e => e.scared = false);
+    }
+  }
+
+  // Snake movement - SLOW
+  if (frameCount % gameSpeed === 0) {
+    dir = nextDir;
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    // Wall collision
+    if (walls.has(`${head.x},${head.y}`) || head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+      handleDeath();
+      return;
+    }
+
+    // Self collision
+    for (let i = 1; i < snake.length; i++) {
+      if (snake[i].x === head.x && snake[i].y === head.y) {
+        handleDeath();
+        return;
+      }
+    }
+
+    snake.unshift(head);
+
+    // Eat corn
+    let ate = false;
+    for (let i = corn.length - 1; i >= 0; i--) {
+      if (corn[i].x === head.x && corn[i].y === head.y) {
+        if (corn[i].power) {
+          powerMode = true;
+          powerTimer = 200; // VERY LONG power mode
+          enemies.forEach(e => e.scared = true);
+          playPower();
+          spawnParticles(head.x, head.y, '#ffd700', 10);
+          score += 50;
+        } else {
+          score += 10;
+          playEat();
+          spawnParticles(head.x, head.y, '#f0c040', 3);
+        }
+        corn.splice(i, 1);
+        cornEaten++;
+        ate = true;
+        break;
+      }
+    }
+
+    if (!ate) {
+      snake.pop();
+    }
+
+    // Enemy collision
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      if (enemies[i].x === head.x && enemies[i].y === head.y) {
+        if (powerMode && enemies[i].scared) {
+          score += 200;
+          spawnParticles(enemies[i].x, enemies[i].y, enemies[i].type === 'beer' ? '#daa520' : '#44cc44', 8);
+          playEat();
+          enemies.splice(i, 1);
+        } else {
+          handleDeath();
+          return;
+        }
+      }
+    }
+
+    // Filippo collision
+    if (filippo) {
+      const fSize = boss ? 3 : 2;
+      for (let bx = 0; bx < fSize; bx++) {
+        for (let by = 0; by < fSize; by++) {
+          if (head.x === filippo.x + bx && head.y === filippo.y + by) {
+            if (boss && powerMode) {
+              // Damage boss
+              bossHP--;
+              filippo.flashTimer = 10;
+              score += 100;
+              playBossHit();
+              spawnParticles(head.x, head.y, '#e94560', 12);
+              shakeTimer = 8;
+              powerMode = false;
+              powerTimer = 0;
+              // Boss shouts when hit
+              filippo.bubbleText = 'AAAH!\nGRANNO DURO!!';
+              filippo.bubbleTimer = 60;
+
+              if (bossHP <= 0) {
+                spawnParticles(filippo.x + 1, filippo.y + 1, '#ffd700', 30);
+                spawnParticles(filippo.x + 1, filippo.y + 1, '#e94560', 20);
+                score += 2000;
+                filippo = null;
+                boss = null;
+                state = 'victory';
+                playLevelUp();
+                return;
+              }
+            } else if (boss) {
+              handleDeath();
+              return;
+            }
+            // Non-boss Filippo: no collision damage, just bounce snake
+            // (he's just vibing, playing guitar)
+          }
+        }
+      }
+    }
+
+    // Level completion (50% corn = easy)
+    if (level < 3 && cornEaten >= totalCorn * 0.5) {
+      state = 'levelComplete';
+      levelCompleteTimer = 120;
+      playLevelUp();
+      return;
+    }
+  }
+
+  moveEnemies();
+  moveFilippo();
+
+  // Update particles
+  particles = particles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    p.vy += 0.1;
+    return p.life > 0;
+  });
+
+  if (shakeTimer > 0) shakeTimer--;
+  updateHUD();
+}
+
+function handleDeath() {
+  playDie();
+  lives--;
+  spawnParticles(snake[0].x, snake[0].y, '#ff0000', 15);
+
+  if (lives <= 0) {
+    state = 'gameOver';
+  } else {
+    state = 'dying';
+    deathTimer = 60;
+  }
+  updateHUD();
+}
+
+// ===================== DRAW =====================
+function draw() {
+  ctx.save();
+  if (shakeTimer > 0) {
+    ctx.translate(Math.random() * 6 - 3, Math.random() * 6 - 3);
+  }
+
+  // Background
+  ctx.fillStyle = '#0a0015';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(50, 20, 80, 0.12)';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < COLS; x++) {
+    ctx.beginPath(); ctx.moveTo(x * TILE, 0); ctx.lineTo(x * TILE, H); ctx.stroke();
+  }
+  for (let y = 0; y < ROWS; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * TILE); ctx.lineTo(W, y * TILE); ctx.stroke();
+  }
+
+  if (state === 'title') { drawTitleScreen(); ctx.restore(); return; }
+  if (state === 'gameOver') { drawGameOverScreen(); ctx.restore(); return; }
+  if (state === 'victory') { drawVictoryScreen(); ctx.restore(); return; }
+
+  drawWalls();
+  drawCorn();
+  drawEnemies();
+  drawFilippo();
+  drawSnake();
+  drawParticles();
+
+  if (state === 'paused') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#e94560';
+    ctx.font = '24px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('PAUSED', W / 2, H / 2);
+    ctx.fillStyle = '#888';
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillText('PRESS P TO CONTINUE', W / 2, H / 2 + 30);
+  }
+
+  if (state === 'dying') {
+    deathTimer--;
+    ctx.fillStyle = `rgba(255,0,0,${deathTimer / 120})`;
+    ctx.fillRect(0, 0, W, H);
+    if (deathTimer <= 0) {
+      state = 'playing';
+      initLevel(level);
+    }
+  }
+
+  if (state === 'levelComplete') {
+    levelCompleteTimer--;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#00ff88';
+    ctx.font = '20px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText(`LEVEL ${level} CLEAR!`, W / 2, H / 2 - 10);
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '12px "Press Start 2P"';
+    ctx.fillText(`SCORE: ${score}`, W / 2, H / 2 + 20);
+
+    if (levelCompleteTimer <= 0) {
+      state = 'playing';
+      initLevel(level + 1);
+    }
+  }
+
+  ctx.restore();
+}
+
+// ===================== TITLE SCREEN =====================
+function drawTitleScreen() {
+  const t = frameCount * 0.02;
+
+  // Animated bg
+  for (let i = 0; i < 20; i++) {
+    const x = (Math.sin(t + i * 0.7) * 0.5 + 0.5) * W;
+    const y = (Math.cos(t + i * 1.1) * 0.5 + 0.5) * H;
+    ctx.fillStyle = `rgba(233, 69, 96, ${0.04 + Math.sin(t + i) * 0.02})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 25 + Math.sin(t + i) * 10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Title
+  ctx.fillStyle = '#8b0000';
+  ctx.font = '28px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('HADÍK', W / 2 + 3, 80 + 3);
+  ctx.fillStyle = '#e94560';
+  ctx.fillText('HADÍK', W / 2, 80);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillText('v PRAHE', W / 2, 110);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '9px "Press Start 2P"';
+  ctx.fillText('HARD ROCK CAFE EDITION', W / 2, 138);
+
+  // Draw Filippo on title screen!
+  const titleFilippoX = W / 2;
+  const titleFilippoY = 200;
+  const bob = Math.sin(frameCount * 0.05) * 3;
+
+  // Body
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(titleFilippoX - 15, titleFilippoY + 15 + bob, 30, 35);
+  // Head
+  ctx.fillStyle = '#f0c8a0';
+  ctx.beginPath();
+  ctx.arc(titleFilippoX, titleFilippoY + bob, 14, 0, Math.PI * 2);
+  ctx.fill();
+  // Long hair
+  ctx.fillStyle = '#1a0a00';
+  ctx.beginPath();
+  ctx.arc(titleFilippoX, titleFilippoY - 4 + bob, 15, Math.PI * 0.8, Math.PI * 2.2);
+  ctx.fill();
+  // Left hair
+  ctx.beginPath();
+  ctx.moveTo(titleFilippoX - 15, titleFilippoY + bob);
+  ctx.quadraticCurveTo(titleFilippoX - 20, titleFilippoY + 30 + bob, titleFilippoX - 12, titleFilippoY + 45 + bob);
+  ctx.lineTo(titleFilippoX - 10, titleFilippoY + bob);
+  ctx.fill();
+  // Right hair
+  ctx.beginPath();
+  ctx.moveTo(titleFilippoX + 15, titleFilippoY + bob);
+  ctx.quadraticCurveTo(titleFilippoX + 20, titleFilippoY + 30 + bob, titleFilippoX + 12, titleFilippoY + 45 + bob);
+  ctx.lineTo(titleFilippoX + 10, titleFilippoY + bob);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(titleFilippoX - 5, titleFilippoY + bob, 2, 0, Math.PI * 2);
+  ctx.arc(titleFilippoX + 5, titleFilippoY + bob, 2, 0, Math.PI * 2);
+  ctx.fill();
+  // Guitar
+  ctx.fillStyle = '#cc2200';
+  ctx.beginPath();
+  ctx.ellipse(titleFilippoX - 22, titleFilippoY + 28 + bob, 10, 12, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#8B4513';
+  ctx.fillRect(titleFilippoX - 24, titleFilippoY + 5 + bob, 4, 22);
+  // Phone
+  ctx.fillStyle = '#222';
+  ctx.fillRect(titleFilippoX + 18, titleFilippoY + 12 + bob, 8, 12);
+  ctx.fillStyle = '#4488ff';
+  ctx.fillRect(titleFilippoX + 19, titleFilippoY + 14 + bob, 6, 8);
+
+  // Filippo's bubble on title
+  if (Math.floor(frameCount / 40) % 3 !== 2) {
+    drawSpeechBubble(titleFilippoX, titleFilippoY - 30 + bob, 'GRANNO DURO!');
+  }
+
+  // Characters
+  ctx.font = '9px "Press Start 2P"';
+  ctx.fillStyle = '#f0c040';
+  ctx.fillText('KUKURICA = žer ju!', W / 2, 290);
+  ctx.fillStyle = '#daa520';
+  ctx.fillText('PIVO + DON = vyhni sa!', W / 2, 310);
+  ctx.fillStyle = '#e94560';
+  ctx.fillText('FILIPPO = GRANNO DURO!', W / 2, 330);
+
+  // Levels
+  ctx.fillStyle = '#888';
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillText('LVL 1: HARD ROCK CAFE', W / 2, 360);
+  ctx.fillText('LVL 2: KARLOV MOST', W / 2, 378);
+  ctx.fillText('LVL 3: BOSS FILIPPO!', W / 2, 396);
+
+  // Start
+  if (Math.floor(frameCount / 30) % 2 === 0) {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '12px "Press Start 2P"';
+    ctx.fillText('PRESS START', W / 2, 432);
+  }
+
+  ctx.fillStyle = '#444';
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillText('ARROWS = MOVE  |  P = PAUSE', W / 2, 460);
+}
+
+function drawGameOverScreen() {
+  ctx.fillStyle = 'rgba(10, 0, 20, 0.9)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#e94560';
+  ctx.font = '28px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 50);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '14px "Press Start 2P"';
+  ctx.fillText(`SCORE: ${score}`, W / 2, H / 2);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '10px "Press Start 2P"';
+  ctx.fillText(`REACHED LEVEL ${level}`, W / 2, H / 2 + 30);
+
+  // Filippo taunts
+  ctx.fillStyle = '#e94560';
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillText('FILIPPO: "GRANNO DURO,', W / 2, H / 2 + 60);
+  ctx.fillText('NOT GRANNO MORTO!"', W / 2, H / 2 + 75);
+
+  if (Math.floor(frameCount / 30) % 2 === 0) {
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillText('PRESS START TO RETRY', W / 2, H / 2 + 110);
+  }
+}
+
+function drawVictoryScreen() {
+  const t = frameCount * 0.03;
+  // Fireworks
+  for (let i = 0; i < 25; i++) {
+    const x = (Math.sin(t * 2 + i * 1.3) * 0.45 + 0.5) * W;
+    const y = (Math.cos(t * 1.7 + i * 0.9) * 0.35 + 0.3) * H;
+    const colors = ['#e94560', '#ffd700', '#00ff88', '#3498db', '#ff6b6b', '#cc2200'];
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.globalAlpha = 0.5 + Math.sin(t * 3 + i) * 0.3;
+    ctx.beginPath();
+    ctx.arc(x, y, 3 + Math.sin(t + i) * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '24px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('VICTORY!', W / 2, 100);
+
+  ctx.fillStyle = '#00ff88';
+  ctx.font = '11px "Press Start 2P"';
+  ctx.fillText('FILIPPO GUIDETTI', W / 2, 150);
+  ctx.fillText('HAS BEEN DEFEATED!', W / 2, 172);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '9px "Press Start 2P"';
+  ctx.fillText('His guitar is silent.', W / 2, 210);
+  ctx.fillText('His phone is dead.', W / 2, 230);
+  ctx.fillText('No more GRANNO DURO.', W / 2, 250);
+
+  ctx.fillStyle = '#e94560';
+  ctx.font = '9px "Press Start 2P"';
+  ctx.fillText('PRAHA IS SAFE FROM', W / 2, 290);
+  ctx.fillText('DON MYKOTOXÍNOV!', W / 2, 310);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '16px "Press Start 2P"';
+  ctx.fillText(`FINAL SCORE: ${score}`, W / 2, 360);
+
+  ctx.fillStyle = '#daa520';
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillText('HARD ROCK CAFE CELEBRATES!', W / 2, 400);
+
+  if (Math.floor(frameCount / 25) % 2 === 0) {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillText('PRESS START FOR NEW GAME', W / 2, 440);
+  }
+}
+
+// ===================== GAME LOOP =====================
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
