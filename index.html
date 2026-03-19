@@ -2,8 +2,8 @@
 <html lang="sk">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HADÍK v PRAHE - Hard Rock Cafe Edition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Train and Grain - Hard Rock Cafe Praha</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -17,6 +17,7 @@
     min-height: 100vh;
     font-family: 'Press Start 2P', monospace;
     overflow: hidden;
+    touch-action: none;
   }
 
   #arcade-cabinet {
@@ -29,6 +30,7 @@
       inset 0 0 60px rgba(0,0,0,0.5),
       0 20px 60px rgba(0,0,0,0.8);
     position: relative;
+    max-width: 100vw;
   }
 
   #arcade-cabinet::before {
@@ -90,10 +92,7 @@
     font-size: 10px;
   }
 
-  #hud span {
-    text-shadow: 0 0 5px currentColor;
-  }
-
+  #hud span { text-shadow: 0 0 5px currentColor; }
   #lives-display { color: #ffd700; }
   #level-display { color: #00ff88; }
 
@@ -107,8 +106,8 @@
 
   .dpad {
     display: grid;
-    grid-template-columns: 40px 40px 40px;
-    grid-template-rows: 40px 40px 40px;
+    grid-template-columns: 44px 44px 44px;
+    grid-template-rows: 44px 44px 44px;
     gap: 2px;
   }
 
@@ -117,13 +116,14 @@
     border: 2px solid #444;
     border-radius: 6px;
     color: #888;
-    font-size: 16px;
+    font-size: 18px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     user-select: none;
     transition: all 0.1s;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .dpad-btn:active, .dpad-btn.pressed {
@@ -148,8 +148,8 @@
   }
 
   .action-btn {
-    width: 50px;
-    height: 50px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     border: 3px solid #555;
     font-family: 'Press Start 2P', monospace;
@@ -157,6 +157,7 @@
     cursor: pointer;
     color: #fff;
     text-shadow: 0 0 5px currentColor;
+    -webkit-tap-highlight-color: transparent;
   }
 
   #btn-start {
@@ -172,8 +173,16 @@
   #btn-pause {
     background: radial-gradient(circle, #3498db, #2980b9);
     box-shadow: 0 4px 0 #1a5276, 0 0 15px rgba(52, 152, 219, 0.3);
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
+  }
+
+  #btn-music {
+    background: radial-gradient(circle, #27ae60, #1e8449);
+    box-shadow: 0 4px 0 #145a32, 0 0 15px rgba(39, 174, 96, 0.3);
+    width: 44px;
+    height: 44px;
+    font-size: 14px;
   }
 
   #credit {
@@ -194,11 +203,14 @@
     50%, 100% { opacity: 0; }
   }
 
-  @media (max-width: 600px) {
-    #arcade-cabinet { padding: 10px; border-width: 4px; }
-    #arcade-cabinet::before { font-size: 9px; }
-    #hud { font-size: 8px; }
+  @media (max-width: 650px) {
+    #arcade-cabinet { padding: 8px; border-width: 4px; }
+    #arcade-cabinet::before { font-size: 8px; }
+    #hud { font-size: 7px; }
     canvas { width: 100% !important; height: auto !important; }
+    .dpad { grid-template-columns: 48px 48px 48px; grid-template-rows: 48px 48px 48px; }
+    .dpad-btn { font-size: 20px; }
+    .action-btn { width: 50px; height: 50px; }
   }
 </style>
 </head>
@@ -226,6 +238,7 @@
       <div class="dpad-empty"></div>
     </div>
     <div class="action-buttons">
+      <button class="action-btn" id="btn-music">♪</button>
       <button class="action-btn" id="btn-pause">| |</button>
       <button class="action-btn" id="btn-start">START</button>
     </div>
@@ -242,108 +255,144 @@ const TILE = 24;
 const COLS = Math.floor(W / TILE);
 const ROWS = Math.floor(H / TILE);
 
-// Game state
-let state = 'title';
-let score = 0;
-let lives = 5;
-let level = 1;
-let snake = [];
-let dir = { x: 1, y: 0 };
-let nextDir = { x: 1, y: 0 };
-let corn = [];
-let enemies = [];
-let filippo = null; // Filippo is ALWAYS present
-let boss = null;
-let bossHP = 0;
-let bossMaxHP = 0;
-let frameCount = 0;
-let mouthOpen = true;
-let powerMode = false;
-let powerTimer = 0;
-let shakeTimer = 0;
-let particles = [];
-let deathTimer = 0;
-let levelCompleteTimer = 0;
-let gameSpeed = 14; // VERY SLOW
-let cornEaten = 0;
-let totalCorn = 0;
-
-// Filippo speech bubbles
-let filippoBubble = '';
-let filippoBubbleTimer = 0;
-const FILIPPO_QUOTES = [
-  'GRANNO DURO!',
-  'GRANNO DURO!!',
-  'GRANNO DUROOOO!',
-  'GRAAANNO DURO!',
-  'G R A N N O\nD U R O ! !',
-  'DURO! DURO!',
-  'GRANNO!!!',
-  'MOLTO DURO!',
-  'DURISSIMO!'
-];
-
-// Walls per level
-const LEVEL_WALLS = [
-  // Level 1: Simple border + HRC logo outline
-  (walls) => {
-    for (let x = 0; x < COLS; x++) {
-      walls.add(`${x},0`);
-      walls.add(`${x},${ROWS-1}`);
-    }
-    for (let y = 0; y < ROWS; y++) {
-      walls.add(`0,${y}`);
-      walls.add(`${COLS-1},${y}`);
-    }
-    // Small inner obstacles
-    for (let y = 8; y <= 11; y++) {
-      walls.add(`8,${y}`);
-      walls.add(`16,${y}`);
-    }
-  },
-  // Level 2: Prague bridge pillars
-  (walls) => {
-    for (let x = 0; x < COLS; x++) {
-      walls.add(`${x},0`);
-      walls.add(`${x},${ROWS-1}`);
-    }
-    for (let y = 0; y < ROWS; y++) {
-      walls.add(`0,${y}`);
-      walls.add(`${COLS-1},${y}`);
-    }
-    // Bridge pillars - fewer
-    for (let i = 0; i < 3; i++) {
-      const bx = 6 + i * 6;
-      for (let y = 4; y <= 6; y++) walls.add(`${bx},${y}`);
-      for (let y = 13; y <= 15; y++) walls.add(`${bx},${y}`);
-    }
-  },
-  // Level 3: Boss arena - open
-  (walls) => {
-    for (let x = 0; x < COLS; x++) {
-      walls.add(`${x},0`);
-      walls.add(`${x},${ROWS-1}`);
-    }
-    for (let y = 0; y < ROWS; y++) {
-      walls.add(`0,${y}`);
-      walls.add(`${COLS-1},${y}`);
-    }
-    // Just small corner blocks
-    for (let i = 0; i < 2; i++) {
-      walls.add(`${2+i},2`); walls.add(`2,${2+i}`);
-      walls.add(`${COLS-3-i},2`); walls.add(`${COLS-3},${2+i}`);
-      walls.add(`${2+i},${ROWS-3}`); walls.add(`2,${ROWS-3-i}`);
-      walls.add(`${COLS-3-i},${ROWS-3}`); walls.add(`${COLS-3},${ROWS-3-i}`);
-    }
-  }
-];
-
-let walls = new Set();
-
-// Audio synth
+// ===================== METAL MUSIC ENGINE =====================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let musicPlaying = false;
+let musicNodes = [];
+let musicInterval = null;
 
-function playSound(freq, dur, type = 'square', vol = 0.15) {
+// Metal riff patterns (note frequencies)
+const E2=82.41,A2=110,B2=123.47,C3=130.81,D3=146.83,E3=164.81,F3s=185,G3=196,A3=220,B3=246.94,C4=261.63,D4=293.66,E4=329.63;
+
+const RIFFS = [
+  // Power chord riff 1 - classic metal
+  [E2,E2,null,E2,G3,null,A3,null,E2,E2,null,E2,B3,null,A3,null],
+  // Riff 2 - gallop
+  [A2,A2,A2,null,C3,C3,C3,null,D3,D3,D3,null,E3,null,D3,null],
+  // Riff 3 - doom
+  [E2,null,null,E2,null,G3,null,null,A3,null,null,B3,null,A3,null,null],
+];
+
+let currentRiff = 0;
+let riffStep = 0;
+const TEMPO = 180; // BPM - fast metal
+
+function createDistortion(amount) {
+  const curve = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const x = (i * 2) / 256 - 1;
+    curve[i] = ((3 + amount) * x * 20 * (Math.PI / 180)) / (Math.PI + amount * Math.abs(x));
+  }
+  const shaper = audioCtx.createWaveShaper();
+  shaper.curve = curve;
+  shaper.oversample = '4x';
+  return shaper;
+}
+
+function playMetalNote(freq, dur) {
+  if (!freq) return;
+  // Power chord = root + fifth
+  const freqs = [freq, freq * 1.5, freq * 2];
+
+  freqs.forEach((f, idx) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const dist = createDistortion(50);
+
+    osc.type = idx === 0 ? 'sawtooth' : 'square';
+    osc.frequency.value = f;
+
+    // Palm mute feel
+    gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.02, audioCtx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+
+    osc.connect(dist);
+    dist.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + dur);
+  });
+}
+
+function playDrumHit(type) {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const noise = audioCtx.createOscillator();
+  const noiseGain = audioCtx.createGain();
+
+  if (type === 'kick') {
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.type = 'sine';
+  } else if (type === 'snare') {
+    osc.frequency.value = 200;
+    gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+    osc.type = 'triangle';
+    // Noise component
+    noise.type = 'sawtooth';
+    noise.frequency.value = 3000 + Math.random() * 2000;
+    noiseGain.gain.setValueAtTime(0.015, audioCtx.currentTime);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+    noise.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+    noise.start();
+    noise.stop(audioCtx.currentTime + 0.08);
+  } else { // hihat
+    osc.frequency.value = 6000 + Math.random() * 3000;
+    gain.gain.setValueAtTime(0.008, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+    osc.type = 'square';
+  }
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.2);
+}
+
+function metalTick() {
+  const riff = RIFFS[currentRiff];
+  const note = riff[riffStep];
+  const dur = 60 / TEMPO / 2;
+
+  playMetalNote(note, dur * 0.9);
+
+  // Double bass drum pattern
+  if (riffStep % 2 === 0) playDrumHit('kick');
+  if (riffStep % 4 === 2) playDrumHit('snare');
+  if (riffStep % 2 === 0) playDrumHit('hihat');
+
+  riffStep++;
+  if (riffStep >= riff.length) {
+    riffStep = 0;
+    currentRiff = (currentRiff + 1) % RIFFS.length;
+  }
+}
+
+function startMusic() {
+  if (musicPlaying) return;
+  audioCtx.resume();
+  musicPlaying = true;
+  const interval = (60 / TEMPO / 2) * 1000; // 16th notes
+  musicInterval = setInterval(metalTick, interval);
+}
+
+function stopMusic() {
+  musicPlaying = false;
+  if (musicInterval) { clearInterval(musicInterval); musicInterval = null; }
+}
+
+function toggleMusic() {
+  if (musicPlaying) stopMusic();
+  else startMusic();
+}
+
+// ===================== SFX =====================
+function playSound(freq, dur, type = 'square', vol = 0.12) {
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = type;
@@ -362,22 +411,116 @@ function playDie() {
   setTimeout(() => playSound(200, 0.2), 200);
 }
 function playLevelUp() {
-  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playSound(f, 0.15, 'square', 0.12), i * 100));
+  [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playSound(f, 0.15, 'square', 0.1), i * 100));
 }
 function playPower() { playSound(600, 0.1); playSound(900, 0.08); }
-function playBossHit() { playSound(150, 0.2, 'sawtooth', 0.2); }
+function playBossHit() { playSound(150, 0.2, 'sawtooth', 0.15); }
 function playGranno() {
-  // Guitar riff sound
-  [330, 440, 550, 660].forEach((f, i) => setTimeout(() => playSound(f, 0.12, 'sawtooth', 0.08), i * 60));
+  [330, 440, 550, 660].forEach((f, i) => setTimeout(() => playSound(f, 0.1, 'sawtooth', 0.06), i * 50));
+}
+function playMillOpen() {
+  [262, 330, 392, 523, 659].forEach((f, i) => setTimeout(() => playSound(f, 0.2, 'triangle', 0.1), i * 80));
+}
+function playTrainWhistle() {
+  playSound(800, 0.3, 'sine', 0.08);
+  setTimeout(() => playSound(600, 0.4, 'sine', 0.08), 200);
 }
 
-// Initialize level
+// ===================== GAME STATE =====================
+let state = 'title'; // title, difficulty, playing, paused, dying, levelComplete, enteringMill, gameOver, victory
+let difficulty = 'easy'; // easy, medium, hard
+let score = 0;
+let lives = 5;
+let level = 1;
+let train = []; // snake = train
+let dir = { x: 1, y: 0 };
+let nextDir = { x: 1, y: 0 };
+let grain = []; // corn = grain
+let enemies = [];
+let filippo = null;
+let boss = null;
+let bossHP = 0;
+let bossMaxHP = 0;
+let frameCount = 0;
+let powerMode = false;
+let powerTimer = 0;
+let shakeTimer = 0;
+let particles = [];
+let deathTimer = 0;
+let levelCompleteTimer = 0;
+let gameSpeed = 16;
+let grainCollected = 0;
+let grainNeeded = 5;
+let mill = null; // mill position
+let millOpen = false;
+let millTimer = 0;
+let enteringMillTimer = 0;
+let difficultySelection = 0; // 0=easy, 1=medium, 2=hard
+
+// Filippo quotes
+const FILIPPO_QUOTES = [
+  'GRANNO DURO!',
+  'GRANNO DURO!!',
+  'GRANNO DUROOOO!',
+  'NEWS! NEWS!',
+  'NEWS! NEWS!!',
+  'GRAAANNO DURO!',
+  'BREAKING NEWS!\nGRANNO DURO!',
+  'DURO! DURO!',
+  'NEWS UPDATE:\nGRANNO!!',
+  'MOLTO DURO!',
+  'DURISSIMO!',
+  'EXCLUSIVE!\nGRANNO DURO!!'
+];
+
+// Difficulty settings
+const DIFF = {
+  easy:   { lives: 7, speed: [16, 14, 13], enemyCount: [1, 2, 1], enemySpeed: [25, 22, 20], chase: 0.1, grainNeeded: [5, 8, 5], powerDur: 250, powerChance: 0.2 },
+  medium: { lives: 5, speed: [12, 11, 10], enemyCount: [2, 3, 2], enemySpeed: [18, 15, 14], chase: 0.25, grainNeeded: [8, 12, 8], powerDur: 160, powerChance: 0.12 },
+  hard:   { lives: 3, speed: [10, 9, 8],   enemyCount: [3, 4, 3], enemySpeed: [14, 12, 10], chase: 0.4, grainNeeded: [12, 18, 10], powerDur: 100, powerChance: 0.08 }
+};
+
+// Walls per level
+const LEVEL_WALLS = [
+  // Level 1: Hard Rock Cafe
+  (walls) => {
+    for (let x = 0; x < COLS; x++) { walls.add(`${x},0`); walls.add(`${x},${ROWS-1}`); }
+    for (let y = 0; y < ROWS; y++) { walls.add(`0,${y}`); walls.add(`${COLS-1},${y}`); }
+    for (let y = 8; y <= 11; y++) { walls.add(`8,${y}`); walls.add(`16,${y}`); }
+  },
+  // Level 2: Karlov Most
+  (walls) => {
+    for (let x = 0; x < COLS; x++) { walls.add(`${x},0`); walls.add(`${x},${ROWS-1}`); }
+    for (let y = 0; y < ROWS; y++) { walls.add(`0,${y}`); walls.add(`${COLS-1},${y}`); }
+    for (let i = 0; i < 3; i++) {
+      const bx = 6 + i * 6;
+      for (let y = 4; y <= 6; y++) walls.add(`${bx},${y}`);
+      for (let y = 13; y <= 15; y++) walls.add(`${bx},${y}`);
+    }
+  },
+  // Level 3: Boss Arena
+  (walls) => {
+    for (let x = 0; x < COLS; x++) { walls.add(`${x},0`); walls.add(`${x},${ROWS-1}`); }
+    for (let y = 0; y < ROWS; y++) { walls.add(`0,${y}`); walls.add(`${COLS-1},${y}`); }
+    for (let i = 0; i < 2; i++) {
+      walls.add(`${2+i},2`); walls.add(`2,${2+i}`);
+      walls.add(`${COLS-3-i},2`); walls.add(`${COLS-3},${2+i}`);
+      walls.add(`${2+i},${ROWS-3}`); walls.add(`2,${ROWS-3-i}`);
+      walls.add(`${COLS-3-i},${ROWS-3}`); walls.add(`${COLS-3},${ROWS-3-i}`);
+    }
+  }
+];
+
+let walls = new Set();
+
+// ===================== INIT LEVEL =====================
 function initLevel(lvl) {
   level = lvl;
+  const d = DIFF[difficulty];
   walls = new Set();
   LEVEL_WALLS[lvl - 1](walls);
 
-  snake = [
+  train = [
     { x: 3, y: Math.floor(ROWS / 2) },
     { x: 2, y: Math.floor(ROWS / 2) },
     { x: 1, y: Math.floor(ROWS / 2) }
@@ -385,148 +528,171 @@ function initLevel(lvl) {
   dir = { x: 1, y: 0 };
   nextDir = { x: 1, y: 0 };
 
-  // Place corn - more of it, more power-ups
-  corn = [];
-  cornEaten = 0;
+  // Place grain
+  grain = [];
+  grainCollected = 0;
+  grainNeeded = d.grainNeeded[lvl - 1];
   const occupied = new Set([...walls]);
-  snake.forEach(s => occupied.add(`${s.x},${s.y}`));
+  train.forEach(s => occupied.add(`${s.x},${s.y}`));
+
+  // Mill position (right side, middle) - starts closed
+  mill = { x: COLS - 4, y: Math.floor(ROWS / 2) - 1 };
+  millOpen = false;
+  // Reserve mill area
+  for (let mx = 0; mx < 3; mx++) {
+    for (let my = 0; my < 3; my++) {
+      occupied.add(`${mill.x + mx},${mill.y + my}`);
+    }
+  }
 
   for (let y = 1; y < ROWS - 1; y++) {
     for (let x = 1; x < COLS - 1; x++) {
-      if (!occupied.has(`${x},${y}`) && Math.random() < 0.25) {
-        corn.push({ x, y, power: Math.random() < 0.15 }); // 15% power corn = easy mode
+      if (!occupied.has(`${x},${y}`) && Math.random() < 0.22) {
+        grain.push({ x, y, power: Math.random() < d.powerChance });
         occupied.add(`${x},${y}`);
       }
     }
   }
-  totalCorn = corn.length;
 
-  // FEWER enemies, SUPER SLOW
+  // Enemies: PILUS beetles + SGS inspectors
   enemies = [];
-  const enemyCount = lvl === 1 ? 2 : lvl === 2 ? 3 : 2;
-  for (let i = 0; i < enemyCount; i++) {
+  const ec = d.enemyCount[lvl - 1];
+  for (let i = 0; i < ec; i++) {
     let ex, ey;
     do {
-      ex = 2 + Math.floor(Math.random() * (COLS - 4));
+      ex = 2 + Math.floor(Math.random() * (COLS - 6));
       ey = 2 + Math.floor(Math.random() * (ROWS - 4));
-    } while (occupied.has(`${ex},${ey}`) || (Math.abs(ex - snake[0].x) < 8 && Math.abs(ey - snake[0].y) < 8));
+    } while (occupied.has(`${ex},${ey}`) || (Math.abs(ex - train[0].x) < 8 && Math.abs(ey - train[0].y) < 8));
 
     enemies.push({
       x: ex, y: ey,
-      type: i % 2 === 0 ? 'beer' : 'don',
+      type: i % 2 === 0 ? 'pilus' : 'sgs',
       dir: { x: [1, -1, 0, 0][Math.floor(Math.random() * 4)], y: [0, 0, 1, -1][Math.floor(Math.random() * 4)] },
       moveTimer: 0,
-      scared: false
+      scared: false,
+      wingFrame: 0
     });
   }
 
-  // FILIPPO is always present! Start him far from player
+  // Filippo always present
   filippo = {
-    x: COLS - 6,
-    y: 4,
-    moveTimer: 0,
-    guitarFrame: 0,
-    facingLeft: true,
-    bubbleTimer: 0,
-    bubbleText: '',
-    phoneWave: 0
+    x: COLS - 8, y: 3, moveTimer: 0, guitarFrame: 0, facingLeft: true,
+    bubbleTimer: 0, bubbleText: '', phoneWave: 0, flashTimer: 0
   };
 
-  // Boss mode on level 3
   boss = null;
   if (lvl === 3) {
-    bossHP = 6; // easier boss
+    bossHP = 6;
     bossMaxHP = 6;
-    boss = true; // filippo becomes the boss
+    boss = true;
   }
 
-  // VERY SLOW game speed
-  gameSpeed = lvl === 1 ? 14 : lvl === 2 ? 12 : 11;
+  gameSpeed = d.speed[lvl - 1];
   powerMode = false;
   powerTimer = 0;
   particles = [];
-  filippoBubble = '';
-  filippoBubbleTimer = 0;
+  enteringMillTimer = 0;
 
   updateHUD();
 }
 
 function updateHUD() {
   document.getElementById('score-display').textContent = `SCORE: ${score}`;
-  document.getElementById('level-display').textContent = boss ? `BOSS: ${'█'.repeat(Math.ceil(bossHP / bossMaxHP * 6))}${'░'.repeat(6 - Math.ceil(bossHP / bossMaxHP * 6))}` : `LEVEL ${level}`;
+  const grainText = `GRAIN: ${grainCollected}/${grainNeeded}`;
+  document.getElementById('level-display').textContent = boss ? `BOSS: ${'█'.repeat(Math.max(0,Math.ceil(bossHP / bossMaxHP * 6)))}${'░'.repeat(6 - Math.max(0,Math.ceil(bossHP / bossMaxHP * 6)))}` : `LVL${level} ${grainText}`;
   document.getElementById('lives-display').textContent = '♥'.repeat(Math.max(0, lives));
 }
 
 function spawnParticles(x, y, color, count = 5) {
   for (let i = 0; i < count; i++) {
     particles.push({
-      x: x * TILE + TILE / 2,
-      y: y * TILE + TILE / 2,
-      vx: (Math.random() - 0.5) * 4,
-      vy: (Math.random() - 0.5) * 4,
-      life: 20 + Math.random() * 15,
-      color,
-      size: 2 + Math.random() * 3
+      x: x * TILE + TILE / 2, y: y * TILE + TILE / 2,
+      vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+      life: 20 + Math.random() * 15, color, size: 2 + Math.random() * 3
     });
   }
 }
 
-// Input
-const keys = {};
+// ===================== INPUT =====================
 document.addEventListener('keydown', (e) => {
-  keys[e.key] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
 
-  if (state === 'title' || state === 'gameOver' || state === 'victory') {
-    if (e.key === 'Enter' || e.key === ' ') startGame();
+  if (state === 'title') {
+    if (e.key === 'Enter' || e.key === ' ') { state = 'difficulty'; return; }
+  }
+  if (state === 'difficulty') {
+    if (e.key === 'ArrowUp') difficultySelection = Math.max(0, difficultySelection - 1);
+    if (e.key === 'ArrowDown') difficultySelection = Math.min(2, difficultySelection + 1);
+    if (e.key === 'Enter' || e.key === ' ') {
+      difficulty = ['easy', 'medium', 'hard'][difficultySelection];
+      startGame();
+    }
     return;
+  }
+  if (state === 'gameOver' || state === 'victory') {
+    if (e.key === 'Enter' || e.key === ' ') { state = 'difficulty'; return; }
   }
   if (state === 'playing') {
     if (e.key === 'ArrowUp' && dir.y !== 1) nextDir = { x: 0, y: -1 };
     if (e.key === 'ArrowDown' && dir.y !== -1) nextDir = { x: 0, y: 1 };
     if (e.key === 'ArrowLeft' && dir.x !== 1) nextDir = { x: -1, y: 0 };
     if (e.key === 'ArrowRight' && dir.x !== -1) nextDir = { x: 1, y: 0 };
-    if (e.key === 'p' || e.key === 'Escape') { state = 'paused'; }
+    if (e.key === 'p' || e.key === 'Escape') state = 'paused';
+    if (e.key === 'm') toggleMusic();
   } else if (state === 'paused') {
-    if (e.key === 'p' || e.key === 'Escape' || e.key === ' ') { state = 'playing'; }
+    if (e.key === 'p' || e.key === 'Escape' || e.key === ' ') state = 'playing';
   }
 });
-document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-// D-pad buttons
+// D-pad
 function setupButton(id, action) {
   const btn = document.getElementById(id);
-  btn.addEventListener('mousedown', (e) => { e.preventDefault(); action(); btn.classList.add('pressed'); });
-  btn.addEventListener('mouseup', () => btn.classList.remove('pressed'));
-  btn.addEventListener('mouseleave', () => btn.classList.remove('pressed'));
-  btn.addEventListener('touchstart', (e) => { e.preventDefault(); action(); btn.classList.add('pressed'); });
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); btn.classList.remove('pressed'); });
+  const doAction = (e) => { e.preventDefault(); e.stopPropagation(); action(); btn.classList.add('pressed'); };
+  const endAction = (e) => { if(e) e.preventDefault(); btn.classList.remove('pressed'); };
+  btn.addEventListener('mousedown', doAction);
+  btn.addEventListener('mouseup', endAction);
+  btn.addEventListener('mouseleave', endAction);
+  btn.addEventListener('touchstart', doAction, { passive: false });
+  btn.addEventListener('touchend', endAction, { passive: false });
+  btn.addEventListener('touchcancel', endAction, { passive: false });
 }
 
-setupButton('btn-up', () => { if (state === 'playing' && dir.y !== 1) nextDir = { x: 0, y: -1 }; });
-setupButton('btn-down', () => { if (state === 'playing' && dir.y !== -1) nextDir = { x: 0, y: 1 }; });
+setupButton('btn-up', () => {
+  if (state === 'difficulty') { difficultySelection = Math.max(0, difficultySelection - 1); }
+  else if (state === 'playing' && dir.y !== 1) nextDir = { x: 0, y: -1 };
+});
+setupButton('btn-down', () => {
+  if (state === 'difficulty') { difficultySelection = Math.min(2, difficultySelection + 1); }
+  else if (state === 'playing' && dir.y !== -1) nextDir = { x: 0, y: 1 };
+});
 setupButton('btn-left', () => { if (state === 'playing' && dir.x !== 1) nextDir = { x: -1, y: 0 }; });
 setupButton('btn-right', () => { if (state === 'playing' && dir.x !== -1) nextDir = { x: 1, y: 0 }; });
 
 document.getElementById('btn-start').addEventListener('click', () => {
-  if (state === 'title' || state === 'gameOver' || state === 'victory') startGame();
+  audioCtx.resume();
+  if (state === 'title') state = 'difficulty';
+  else if (state === 'difficulty') { difficulty = ['easy', 'medium', 'hard'][difficultySelection]; startGame(); }
+  else if (state === 'gameOver' || state === 'victory') state = 'difficulty';
   else if (state === 'paused') state = 'playing';
 });
+document.getElementById('btn-start').addEventListener('touchstart', (e) => { e.preventDefault(); }, { passive: false });
+
 document.getElementById('btn-pause').addEventListener('click', () => {
   if (state === 'playing') state = 'paused';
   else if (state === 'paused') state = 'playing';
 });
+document.getElementById('btn-music').addEventListener('click', toggleMusic);
 
 function startGame() {
   audioCtx.resume();
   score = 0;
-  lives = 5;
+  lives = DIFF[difficulty].lives;
   state = 'playing';
   initLevel(1);
+  if (!musicPlaying) startMusic();
 }
 
 // ===================== DRAWING =====================
-
 function drawWalls() {
   walls.forEach(w => {
     const [x, y] = w.split(',').map(Number);
@@ -536,62 +702,107 @@ function drawWalls() {
     ctx.strokeStyle = isEdge ? '#1a0a2e' : '#2a0f4c';
     ctx.lineWidth = 1;
     ctx.strokeRect(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fillRect(x * TILE + 1, y * TILE + 1, TILE - 2, 2);
   });
 }
 
-function drawSnake() {
-  snake.forEach((seg, i) => {
-    const isHead = i === 0;
+// TRAIN drawing
+function drawTrain() {
+  train.forEach((seg, i) => {
+    const isLoco = i === 0;
     const px = seg.x * TILE;
     const py = seg.y * TILE;
 
-    if (isHead) {
-      ctx.fillStyle = powerMode ? '#ff6b6b' : '#ffd700';
-      ctx.beginPath();
-      const cx = px + TILE / 2;
-      const cy = py + TILE / 2;
-      const r = TILE / 2 - 1;
+    if (isLoco) {
+      // LOCOMOTIVE
+      ctx.fillStyle = powerMode ? '#ff4444' : '#cc2200';
+      ctx.fillRect(px + 2, py + 3, TILE - 4, TILE - 6);
 
-      if (mouthOpen) {
-        let startAngle, endAngle;
-        if (dir.x === 1) { startAngle = 0.25; endAngle = Math.PI * 2 - 0.25; }
-        else if (dir.x === -1) { startAngle = Math.PI + 0.25; endAngle = Math.PI - 0.25; }
-        else if (dir.y === -1) { startAngle = -Math.PI / 2 + 0.25; endAngle = -Math.PI / 2 - 0.25; }
-        else { startAngle = Math.PI / 2 + 0.25; endAngle = Math.PI / 2 - 0.25; }
-        ctx.arc(cx, cy, r, startAngle, endAngle);
-      } else {
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      // Chimney
+      let chX = px + TILE / 2, chY = py + 2;
+      if (dir.x === 1) chX = px + TILE - 6;
+      else if (dir.x === -1) chX = px + 2;
+      else if (dir.y === -1) chY = py + 2;
+      else chY = py + TILE - 8;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(chX, chY - 4, 5, 6);
+
+      // Smoke puffs
+      if (frameCount % 8 < 4) {
+        ctx.fillStyle = 'rgba(200,200,200,0.4)';
+        ctx.beginPath();
+        ctx.arc(chX + 2, chY - 7 - Math.sin(frameCount * 0.1) * 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(chX + 4, chY - 12 - Math.sin(frameCount * 0.08) * 2, 2, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.lineTo(cx, cy);
-      ctx.fill();
 
-      // Eye
-      ctx.fillStyle = '#000';
-      let eyeX = cx, eyeY = cy - 4;
-      if (dir.x === 1) eyeX = cx + 2;
-      else if (dir.x === -1) eyeX = cx - 2;
-      else if (dir.y === 1) { eyeX = cx - 4; eyeY = cy + 2; }
-      else { eyeX = cx - 4; eyeY = cy - 2; }
+      // Windows
+      ctx.fillStyle = '#ffdd44';
+      ctx.fillRect(px + 4, py + 5, 4, 4);
+      ctx.fillRect(px + TILE - 8, py + 5, 4, 4);
+
+      // Headlight
+      ctx.fillStyle = '#ffd700';
+      if (dir.x === 1) ctx.fillRect(px + TILE - 3, py + TILE / 2 - 2, 3, 4);
+      else if (dir.x === -1) ctx.fillRect(px, py + TILE / 2 - 2, 3, 4);
+      else if (dir.y === -1) ctx.fillRect(px + TILE / 2 - 2, py, 4, 3);
+      else ctx.fillRect(px + TILE / 2 - 2, py + TILE - 3, 4, 3);
+
+      // Wheels
+      ctx.fillStyle = '#333';
       ctx.beginPath();
-      ctx.arc(eyeX, eyeY, 2, 0, Math.PI * 2);
+      ctx.arc(px + 6, py + TILE - 3, 3, 0, Math.PI * 2);
+      ctx.arc(px + TILE - 6, py + TILE - 3, 3, 0, Math.PI * 2);
       ctx.fill();
+      // Wheel spokes animation
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 1;
+      const rot = frameCount * 0.15;
+      [px + 6, px + TILE - 6].forEach(wx => {
+        ctx.beginPath();
+        ctx.moveTo(wx + Math.cos(rot) * 2, py + TILE - 3 + Math.sin(rot) * 2);
+        ctx.lineTo(wx - Math.cos(rot) * 2, py + TILE - 3 - Math.sin(rot) * 2);
+        ctx.stroke();
+      });
+
+      // Cow catcher
+      ctx.fillStyle = '#888';
+      if (dir.x === 1) { ctx.beginPath(); ctx.moveTo(px+TILE,py+TILE-2); ctx.lineTo(px+TILE+3,py+TILE); ctx.lineTo(px+TILE,py+TILE); ctx.fill(); }
+      else if (dir.x === -1) { ctx.beginPath(); ctx.moveTo(px,py+TILE-2); ctx.lineTo(px-3,py+TILE); ctx.lineTo(px,py+TILE); ctx.fill(); }
     } else {
-      const t = i / snake.length;
-      ctx.fillStyle = powerMode
-        ? `rgb(${200 - t * 100}, ${50 + t * 30}, ${50 + t * 30})`
-        : `rgb(${Math.floor(255 - t * 100)}, ${Math.floor(200 - t * 150)}, 0)`;
-      const shrink = 2 + t * 2;
-      ctx.fillRect(px + shrink, py + shrink, TILE - shrink * 2, TILE - shrink * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
-      ctx.fillRect(px + shrink, py + shrink, TILE - shrink * 2, 2);
+      // WAGONS
+      const t = i / train.length;
+      const wagonColor = powerMode
+        ? `hsl(0, ${70 - t * 30}%, ${50 - t * 15}%)`
+        : `hsl(${30 + t * 10}, ${80 - t * 30}%, ${40 - t * 15}%)`;
+      ctx.fillStyle = wagonColor;
+      ctx.fillRect(px + 3, py + 4, TILE - 6, TILE - 7);
+      // Wagon top
+      ctx.fillStyle = powerMode ? '#aa2222' : '#8B4513';
+      ctx.fillRect(px + 3, py + 3, TILE - 6, 3);
+      // Wheels
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(px + 6, py + TILE - 3, 2, 0, Math.PI * 2);
+      ctx.arc(px + TILE - 6, py + TILE - 3, 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Grain load indicator on wagon
+      if (i <= grainCollected && grainCollected > 0) {
+        ctx.fillStyle = '#f0c040';
+        ctx.fillRect(px + 5, py + 6, TILE - 10, 4);
+      }
+      // Coupling
+      ctx.fillStyle = '#555';
+      ctx.fillRect(px - 1, py + TILE / 2 - 1, 3, 2);
+      ctx.fillRect(px + TILE - 2, py + TILE / 2 - 1, 3, 2);
     }
   });
 }
 
-function drawCorn() {
-  corn.forEach(c => {
+// GRAIN (wheat/corn kernels)
+function drawGrain() {
+  grain.forEach(c => {
     const px = c.x * TILE;
     const py = c.y * TILE;
 
@@ -605,103 +816,264 @@ function drawCorn() {
       ctx.beginPath();
       ctx.arc(px + TILE / 2, py + TILE / 2, 3, 0, Math.PI * 2);
       ctx.fill();
+      // Star sparkle
+      ctx.strokeStyle = '#ffd700';
+      ctx.lineWidth = 1;
+      for (let a = 0; a < 4; a++) {
+        const ang = frameCount * 0.05 + a * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(px + TILE/2, py + TILE/2);
+        ctx.lineTo(px + TILE/2 + Math.cos(ang) * 9, py + TILE/2 + Math.sin(ang) * 9);
+        ctx.stroke();
+      }
     } else {
-      ctx.fillStyle = '#f0c040';
+      // Wheat kernel
+      ctx.fillStyle = '#daa520';
       ctx.beginPath();
-      ctx.ellipse(px + TILE / 2, py + TILE / 2, 4, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(px + TILE / 2, py + TILE / 2, 3, 6, 0.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#d4a020';
+      // Awn (hair on top)
+      ctx.strokeStyle = '#c89020';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.ellipse(px + TILE / 2, py + TILE / 2 + 1, 3, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(px + TILE / 2 + 1, py + TILE / 2 - 5);
+      ctx.lineTo(px + TILE / 2 + 3, py + TILE / 2 - 9);
+      ctx.stroke();
     }
   });
+}
+
+// MILL
+function drawMill() {
+  if (!mill) return;
+  const px = mill.x * TILE;
+  const py = mill.y * TILE;
+  const mw = TILE * 3;
+  const mh = TILE * 3;
+
+  // Mill building
+  ctx.fillStyle = millOpen ? '#8B6914' : '#5a4a3a';
+  ctx.fillRect(px + 4, py + TILE * 0.5, mw - 8, mh - TILE * 0.5);
+
+  // Roof (triangle)
+  ctx.fillStyle = millOpen ? '#cc3300' : '#4a3a2a';
+  ctx.beginPath();
+  ctx.moveTo(px, py + TILE * 0.5);
+  ctx.lineTo(px + mw / 2, py - TILE * 0.3);
+  ctx.lineTo(px + mw, py + TILE * 0.5);
+  ctx.closePath();
+  ctx.fill();
+
+  // Mill wheel / blades
+  ctx.save();
+  ctx.translate(px + mw / 2, py + mh * 0.45);
+  ctx.rotate(millOpen ? frameCount * 0.05 : 0);
+  ctx.strokeStyle = millOpen ? '#ffd700' : '#666';
+  ctx.lineWidth = 3;
+  for (let b = 0; b < 4; b++) {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    const ang = b * Math.PI / 2;
+    ctx.lineTo(Math.cos(ang) * 14, Math.sin(ang) * 14);
+    ctx.stroke();
+    // Blade
+    ctx.fillStyle = millOpen ? '#daa520' : '#555';
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(ang) * 5, Math.sin(ang) * 5);
+    ctx.lineTo(Math.cos(ang + 0.3) * 14, Math.sin(ang + 0.3) * 14);
+    ctx.lineTo(Math.cos(ang) * 14, Math.sin(ang) * 14);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Door
+  if (millOpen) {
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(px + mw / 2 - 6, py + mh - 16, 12, 16);
+    // Glow
+    ctx.fillStyle = `rgba(255, 200, 50, ${0.3 + Math.sin(frameCount * 0.1) * 0.2})`;
+    ctx.fillRect(px + mw / 2 - 8, py + mh - 18, 16, 20);
+    // Arrow
+    if (frameCount % 30 < 20) {
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '10px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('▶▶', px + mw / 2, py - TILE * 0.5);
+    }
+  } else {
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(px + mw / 2 - 5, py + mh - 14, 10, 14);
+    // Lock
+    ctx.fillStyle = '#888';
+    ctx.fillRect(px + mw / 2 - 3, py + mh - 10, 6, 5);
+  }
+
+  // Label
+  ctx.fillStyle = millOpen ? '#ffd700' : '#666';
+  ctx.font = '6px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('MLYN', px + mw / 2, py + mh + 8);
+  if (!millOpen) {
+    ctx.fillText(`${grainCollected}/${grainNeeded}`, px + mw / 2, py + mh + 17);
+  }
+}
+
+// PILUS beetle
+function drawPilus(e) {
+  const px = e.x * TILE;
+  const py = e.y * TILE;
+
+  if (powerMode && e.scared) {
+    ctx.fillStyle = '#3355ff';
+    ctx.beginPath();
+    ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(px + 7, py + 8, 3, 3);
+    ctx.fillRect(px + 14, py + 8, 3, 3);
+    return;
+  }
+
+  // Body
+  ctx.fillStyle = '#4a2800';
+  ctx.beginPath();
+  ctx.ellipse(px + TILE / 2, py + TILE / 2 + 1, 8, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Shell pattern
+  ctx.strokeStyle = '#6a3800';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px + TILE / 2, py + 3);
+  ctx.lineTo(px + TILE / 2, py + TILE - 3);
+  ctx.stroke();
+
+  // Wings flutter
+  e.wingFrame += 0.15;
+  const wingSpread = Math.sin(e.wingFrame) * 3;
+  ctx.fillStyle = '#8a5800';
+  ctx.beginPath();
+  ctx.ellipse(px + TILE / 2 - 5 - wingSpread, py + TILE / 2, 4, 7, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(px + TILE / 2 + 5 + wingSpread, py + TILE / 2, 4, 7, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#3a1800';
+  ctx.beginPath();
+  ctx.arc(px + TILE / 2, py + 5, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Antennae
+  ctx.strokeStyle = '#3a1800';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px + TILE / 2 - 2, py + 3);
+  ctx.quadraticCurveTo(px + TILE / 2 - 6, py - 3, px + TILE / 2 - 8, py - 1);
+  ctx.moveTo(px + TILE / 2 + 2, py + 3);
+  ctx.quadraticCurveTo(px + TILE / 2 + 6, py - 3, px + TILE / 2 + 8, py - 1);
+  ctx.stroke();
+
+  // Eyes
+  ctx.fillStyle = '#ff0';
+  ctx.beginPath();
+  ctx.arc(px + TILE / 2 - 2, py + 4, 1.5, 0, Math.PI * 2);
+  ctx.arc(px + TILE / 2 + 2, py + 4, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label
+  ctx.fillStyle = '#ff4444';
+  ctx.font = '5px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('PILUS', px + TILE / 2, py + TILE + 1);
+
+  // Legs
+  ctx.strokeStyle = '#3a1800';
+  ctx.lineWidth = 1;
+  for (let l = 0; l < 3; l++) {
+    const ly = py + 8 + l * 4;
+    ctx.beginPath();
+    ctx.moveTo(px + 4, ly);
+    ctx.lineTo(px, ly + 2);
+    ctx.moveTo(px + TILE - 4, ly);
+    ctx.lineTo(px + TILE, ly + 2);
+    ctx.stroke();
+  }
+}
+
+// SGS Inspector
+function drawSGS(e) {
+  const px = e.x * TILE;
+  const py = e.y * TILE;
+
+  if (powerMode && e.scared) {
+    ctx.fillStyle = '#3355ff';
+    ctx.beginPath();
+    ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(px + 7, py + 8, 3, 3);
+    ctx.fillRect(px + 14, py + 8, 3, 3);
+    return;
+  }
+
+  // Body (suit)
+  ctx.fillStyle = '#1a3a6a';
+  ctx.fillRect(px + 5, py + 10, 14, 12);
+
+  // Head
+  ctx.fillStyle = '#f0c8a0';
+  ctx.beginPath();
+  ctx.arc(px + TILE / 2, py + 8, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hard hat
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath();
+  ctx.arc(px + TILE / 2, py + 6, 7, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(px + 3, py + 5, 18, 3);
+
+  // Eyes (stern)
+  ctx.fillStyle = '#000';
+  ctx.fillRect(px + 9, py + 7, 2, 2);
+  ctx.fillRect(px + 13, py + 7, 2, 2);
+  // Frown
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(px + TILE / 2, py + 14, 3, Math.PI, Math.PI * 2);
+  ctx.stroke();
+
+  // Clipboard
+  ctx.fillStyle = '#ddd';
+  ctx.fillRect(px + 16, py + 12, 5, 7);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(px + 17, py + 14, 3, 1);
+  ctx.fillRect(px + 17, py + 16, 3, 1);
+
+  // SGS label
+  ctx.fillStyle = '#ff8800';
+  ctx.font = '5px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('SGS', px + TILE / 2, py + TILE + 1);
 }
 
 function drawEnemies() {
   enemies.forEach(e => {
-    const px = e.x * TILE;
-    const py = e.y * TILE;
-
-    if (powerMode && e.scared) {
-      ctx.fillStyle = '#3355ff';
-      ctx.beginPath();
-      ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 2, 0, Math.PI * 2);
-      ctx.fill();
-      // Scared face
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(px + 7, py + 8, 3, 3);
-      ctx.fillRect(px + 14, py + 8, 3, 3);
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(px + 7, py + 16);
-      ctx.lineTo(px + 10, py + 14);
-      ctx.lineTo(px + 13, py + 16);
-      ctx.lineTo(px + 17, py + 14);
-      ctx.stroke();
-      return;
-    }
-
-    if (e.type === 'beer') {
-      // Beer mug
-      ctx.fillStyle = '#daa520';
-      ctx.fillRect(px + 5, py + 4, 14, 16);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(px + 5, py + 4, 14, 5);
-      // Foam bubbles
-      ctx.beginPath();
-      ctx.arc(px + 8, py + 3, 3, 0, Math.PI * 2);
-      ctx.arc(px + 14, py + 2, 3, 0, Math.PI * 2);
-      ctx.arc(px + 11, py + 1, 3, 0, Math.PI * 2);
-      ctx.fill();
-      // Handle
-      ctx.strokeStyle = '#daa520';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(px + 21, py + 12, 5, -Math.PI / 2, Math.PI / 2);
-      ctx.stroke();
-      // Face
-      ctx.fillStyle = '#000';
-      ctx.fillRect(px + 8, py + 11, 2, 2);
-      ctx.fillRect(px + 14, py + 11, 2, 2);
-      // Smile
-      ctx.beginPath();
-      ctx.arc(px + 12, py + 14, 3, 0, Math.PI);
-      ctx.stroke();
-    } else {
-      // DON mycotoxin
-      ctx.fillStyle = '#44cc44';
-      ctx.beginPath();
-      ctx.arc(px + TILE / 2, py + TILE / 2, TILE / 2 - 2, 0, Math.PI * 2);
-      ctx.fill();
-      // Drip effect
-      ctx.fillStyle = '#33aa33';
-      ctx.beginPath();
-      ctx.ellipse(px + 8, py + TILE + 2, 2, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Skull
-      ctx.fillStyle = '#000';
-      ctx.fillRect(px + 7, py + 7, 3, 4);
-      ctx.fillRect(px + 14, py + 7, 3, 4);
-      ctx.fillRect(px + 10, py + 14, 4, 2);
-      // DON label
-      ctx.fillStyle = '#ff0';
-      ctx.font = '7px "Press Start 2P"';
-      ctx.textAlign = 'center';
-      ctx.fillText('DON', px + TILE / 2, py + TILE - 1);
-    }
+    if (e.type === 'pilus') drawPilus(e);
+    else drawSGS(e);
   });
 }
 
-// ===================== FILIPPO DRAWING =====================
+// FILIPPO
 function drawFilippo() {
   if (!filippo) return;
-
   const px = filippo.x * TILE;
   const py = filippo.y * TILE;
   const isBoss = !!boss;
-  const scale = isBoss ? 3 : 2; // boss is 3x3 tiles, normal is 2x2
+  const scale = isBoss ? 3 : 2;
   const bw = TILE * scale;
   const bh = TILE * scale;
   const cx = px + bw / 2;
@@ -712,11 +1084,10 @@ function drawFilippo() {
   ctx.ellipse(cx, py + bh - 2, bw / 2 - 4, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // BODY - Black leather jacket (Hard Rock style!)
+  // Body - leather jacket
   const bodyTop = py + TILE * (isBoss ? 1.2 : 0.8);
   ctx.fillStyle = filippo.flashTimer > 0 ? '#fff' : '#1a1a1a';
   ctx.fillRect(px + 4, bodyTop, bw - 8, bh - TILE * (isBoss ? 1.5 : 1) - 4);
-  // Jacket details
   ctx.strokeStyle = '#333';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -727,14 +1098,14 @@ function drawFilippo() {
   ctx.fillStyle = '#444';
   ctx.fillRect(px + 6, bodyTop + bh * 0.35, bw - 12, 3);
   ctx.fillStyle = '#daa520';
-  ctx.fillRect(cx - 3, bodyTop + bh * 0.35, 6, 3); // belt buckle
+  ctx.fillRect(cx - 3, bodyTop + bh * 0.35, 6, 3);
 
-  // LEGS - jeans
+  // Legs
   ctx.fillStyle = '#2244aa';
   ctx.fillRect(px + 6, bodyTop + bh * 0.4, (bw - 12) / 2 - 1, bh * 0.3);
   ctx.fillRect(cx + 1, bodyTop + bh * 0.4, (bw - 12) / 2 - 1, bh * 0.3);
 
-  // HEAD
+  // Head
   const headR = isBoss ? TILE * 0.8 : TILE * 0.55;
   const headY = py + (isBoss ? TILE : TILE * 0.6);
   ctx.fillStyle = filippo.flashTimer > 0 ? '#ffa' : '#f0c8a0';
@@ -742,47 +1113,45 @@ function drawFilippo() {
   ctx.arc(cx, headY, headR, 0, Math.PI * 2);
   ctx.fill();
 
-  // LONG HAIR!! - flowing down both sides
-  ctx.fillStyle = '#1a0a00'; // dark brown/black long hair
-  // Top hair
+  // LONG HAIR
+  ctx.fillStyle = '#1a0a00';
   ctx.beginPath();
   ctx.arc(cx, headY - 2, headR + 2, Math.PI * 0.85, Math.PI * 2.15);
   ctx.fill();
-  // Left hair strand - long, going down past shoulders
+  const hairWave = Math.sin(frameCount * 0.08) * 2;
+  // Left
   ctx.beginPath();
   ctx.moveTo(cx - headR - 1, headY);
-  ctx.quadraticCurveTo(cx - headR - 4, headY + headR * 1.5, cx - headR + 2, bodyTop + bh * 0.35);
+  ctx.quadraticCurveTo(cx - headR - 4 + hairWave, headY + headR * 1.5, cx - headR + 2, bodyTop + bh * 0.35);
   ctx.lineTo(cx - headR + 5, headY + 2);
   ctx.fill();
-  // Right hair strand
+  // Right
   ctx.beginPath();
   ctx.moveTo(cx + headR + 1, headY);
-  ctx.quadraticCurveTo(cx + headR + 4, headY + headR * 1.5, cx + headR - 2, bodyTop + bh * 0.35);
+  ctx.quadraticCurveTo(cx + headR + 4 - hairWave, headY + headR * 1.5, cx + headR - 2, bodyTop + bh * 0.35);
   ctx.lineTo(cx + headR - 5, headY + 2);
   ctx.fill();
-  // Extra hair strands for flow effect
-  const hairWave = Math.sin(frameCount * 0.08) * 2;
+  // Strands
+  ctx.strokeStyle = '#2a1500';
+  ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(cx - headR, headY + 3);
   ctx.quadraticCurveTo(cx - headR - 3 + hairWave, headY + headR * 2, cx - headR + 6, bodyTop + bh * 0.3);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#2a1500';
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(cx + headR, headY + 3);
   ctx.quadraticCurveTo(cx + headR + 3 - hairWave, headY + headR * 2, cx + headR - 6, bodyTop + bh * 0.3);
   ctx.stroke();
 
-  // EYES
-  ctx.fillStyle = '#000';
+  // Eyes
   const eyeY = headY + (isBoss ? 2 : 0);
   const eyeSpread = isBoss ? 8 : 5;
+  ctx.fillStyle = '#000';
   ctx.beginPath();
   ctx.arc(cx - eyeSpread, eyeY, isBoss ? 2.5 : 2, 0, Math.PI * 2);
   ctx.arc(cx + eyeSpread, eyeY, isBoss ? 2.5 : 2, 0, Math.PI * 2);
   ctx.fill();
-
-  // Eyebrows (intense!)
+  // Eyebrows
   ctx.strokeStyle = '#1a0a00';
   ctx.lineWidth = isBoss ? 2.5 : 1.5;
   ctx.beginPath();
@@ -792,49 +1161,42 @@ function drawFilippo() {
   ctx.lineTo(cx + eyeSpread - 3, eyeY - 3);
   ctx.stroke();
 
-  // Mouth - shouting or smirking
+  // Mouth
   if (filippo.bubbleTimer > 0) {
-    // Open mouth shouting
     ctx.fillStyle = '#c00';
     ctx.beginPath();
     ctx.ellipse(cx, eyeY + (isBoss ? 12 : 8), isBoss ? 5 : 3, isBoss ? 4 : 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#fff';
-    ctx.fillRect(cx - 3, eyeY + (isBoss ? 9 : 6), 6, 1); // teeth
+    ctx.fillRect(cx - 3, eyeY + (isBoss ? 9 : 6), 6, 1);
   } else {
-    ctx.fillStyle = '#000';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(cx, eyeY + (isBoss ? 10 : 7), 3, 0.1, Math.PI - 0.1);
     ctx.stroke();
   }
 
-  // GUITAR! - hanging from shoulder, being played
+  // GUITAR
   const guitarX = filippo.facingLeft ? px + 2 : px + bw - TILE + 2;
   const guitarY = bodyTop + 5;
-  const strum = Math.sin(frameCount * 0.2) * 2; // strumming animation
-
-  // Guitar neck
+  const strum = Math.sin(frameCount * 0.2) * 2;
   ctx.fillStyle = '#8B4513';
   ctx.save();
   ctx.translate(guitarX + 8, guitarY);
   ctx.rotate(filippo.facingLeft ? -0.4 + strum * 0.02 : 0.4 - strum * 0.02);
   ctx.fillRect(-2, -TILE * 0.8, 4, TILE * 0.9);
-  // Tuning pegs
   ctx.fillStyle = '#ddd';
   ctx.fillRect(-4, -TILE * 0.8, 8, 3);
   ctx.restore();
-
-  // Guitar body
-  ctx.fillStyle = '#cc2200'; // Red guitar!
+  ctx.fillStyle = '#cc2200';
   ctx.beginPath();
   ctx.ellipse(guitarX + 8, guitarY + 10, 10, 12 + strum, filippo.facingLeft ? -0.2 : 0.2, 0, Math.PI * 2);
   ctx.fill();
-  // Sound hole
   ctx.fillStyle = '#1a0000';
   ctx.beginPath();
   ctx.arc(guitarX + 8, guitarY + 10, 4, 0, Math.PI * 2);
   ctx.fill();
-  // Strings
   ctx.strokeStyle = '#ddd';
   ctx.lineWidth = 0.5;
   for (let s = -2; s <= 2; s++) {
@@ -843,72 +1205,53 @@ function drawFilippo() {
     ctx.lineTo(guitarX + 8 + s, guitarY + 20);
     ctx.stroke();
   }
-
-  // Strum effect sparkles
   if (Math.abs(strum) > 1.5) {
     ctx.fillStyle = '#ffd700';
     ctx.globalAlpha = 0.7;
     for (let sp = 0; sp < 3; sp++) {
-      const sx = guitarX + 8 + (Math.random() - 0.5) * 20;
-      const sy = guitarY + 10 + (Math.random() - 0.5) * 15;
-      ctx.fillRect(sx, sy, 2, 2);
+      ctx.fillRect(guitarX + 8 + (Math.random() - 0.5) * 20, guitarY + 10 + (Math.random() - 0.5) * 15, 2, 2);
     }
     ctx.globalAlpha = 1;
   }
 
-  // PHONE IN OTHER HAND! - held up, screen glowing
+  // PHONE
   const phoneX = filippo.facingLeft ? px + bw - 8 : px + 2;
   const phoneY = bodyTop + 2;
   const phoneWave = Math.sin(frameCount * 0.05) * 1.5;
-
-  // Arm holding phone
   ctx.strokeStyle = '#f0c8a0';
   ctx.lineWidth = isBoss ? 4 : 3;
   ctx.beginPath();
   ctx.moveTo(filippo.facingLeft ? cx + bw * 0.2 : cx - bw * 0.2, bodyTop + 5);
   ctx.lineTo(phoneX + 4, phoneY + phoneWave);
   ctx.stroke();
-
-  // Phone body
   ctx.fillStyle = '#222';
   ctx.fillRect(phoneX, phoneY - 4 + phoneWave, 9, 14);
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 1;
   ctx.strokeRect(phoneX, phoneY - 4 + phoneWave, 9, 14);
-  // Phone screen glow
   ctx.fillStyle = '#4488ff';
   ctx.fillRect(phoneX + 1, phoneY - 2 + phoneWave, 7, 10);
-  // Screen content hint
   ctx.fillStyle = '#88bbff';
   ctx.fillRect(phoneX + 2, phoneY + phoneWave, 5, 1);
   ctx.fillRect(phoneX + 2, phoneY + 3 + phoneWave, 5, 1);
-  ctx.fillRect(phoneX + 2, phoneY + 5 + phoneWave, 3, 1);
 
-  // NAME TAG
+  // Name
   ctx.fillStyle = '#e94560';
   ctx.font = isBoss ? '8px "Press Start 2P"' : '6px "Press Start 2P"';
   ctx.textAlign = 'center';
   ctx.fillText('FILIPPO', cx, py + bh + (isBoss ? 8 : 5));
-  if (isBoss) {
-    ctx.fillText('GUIDETTI', cx, py + bh + 18);
-  }
+  if (isBoss) ctx.fillText('GUIDETTI', cx, py + bh + 18);
 
-  // HP bar for boss
+  // Boss HP bar
   if (boss && bossHP > 0) {
-    const hpWidth = bw + 20;
-    const hpX = px - 10;
-    const hpY = py - 14;
+    const hpW = bw + 20;
     ctx.fillStyle = '#333';
-    ctx.fillRect(hpX, hpY, hpWidth, 8);
+    ctx.fillRect(px - 10, py - 14, hpW, 8);
     ctx.fillStyle = bossHP > bossMaxHP * 0.3 ? '#e94560' : '#ff0';
-    ctx.fillRect(hpX + 1, hpY + 1, (hpWidth - 2) * (bossHP / bossMaxHP), 6);
-    ctx.fillStyle = '#fff';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText('BOSS', px + bw / 2, hpY - 2);
+    ctx.fillRect(px - 9, py - 13, (hpW - 2) * (bossHP / bossMaxHP), 6);
   }
 
-  // SPEECH BUBBLE!
+  // SPEECH BUBBLE
   if (filippo.bubbleTimer > 0) {
     drawSpeechBubble(cx, py - (isBoss ? 25 : 18), filippo.bubbleText);
   }
@@ -919,43 +1262,39 @@ function drawFilippo() {
 function drawSpeechBubble(x, y, text) {
   const lines = text.split('\n');
   const lineHeight = 11;
-  const maxWidth = Math.max(...lines.map(l => l.length)) * 7 + 16;
-  const totalHeight = lines.length * lineHeight + 12;
-  const bx = Math.max(5, Math.min(x - maxWidth / 2, W - maxWidth - 5));
-  const by = Math.max(5, y - totalHeight);
+  const maxW = Math.max(...lines.map(l => l.length)) * 7 + 16;
+  const totalH = lines.length * lineHeight + 12;
+  const bx = Math.max(5, Math.min(x - maxW / 2, W - maxW - 5));
+  const by = Math.max(5, y - totalH);
 
-  // Bubble body
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.roundRect(bx, by, maxWidth, totalHeight, 8);
+  ctx.roundRect(bx, by, maxW, totalH, 8);
   ctx.fill();
   ctx.stroke();
 
-  // Bubble tail
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.moveTo(x - 5, by + totalHeight);
-  ctx.lineTo(x, by + totalHeight + 10);
-  ctx.lineTo(x + 5, by + totalHeight);
+  ctx.moveTo(x - 5, by + totalH);
+  ctx.lineTo(x, by + totalH + 10);
+  ctx.lineTo(x + 5, by + totalH);
   ctx.fill();
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(x - 6, by + totalHeight - 1);
-  ctx.lineTo(x, by + totalHeight + 10);
-  ctx.lineTo(x + 6, by + totalHeight - 1);
+  ctx.moveTo(x - 6, by + totalH - 1);
+  ctx.lineTo(x, by + totalH + 10);
+  ctx.lineTo(x + 6, by + totalH - 1);
   ctx.stroke();
 
-  // Text
   ctx.fillStyle = '#e94560';
   ctx.font = 'bold 9px "Press Start 2P"';
   ctx.textAlign = 'center';
   lines.forEach((line, i) => {
-    // Shake effect for excitement
     const shake = Math.sin(frameCount * 0.3 + i) * 1.5;
-    ctx.fillText(line, bx + maxWidth / 2 + shake, by + 14 + i * lineHeight);
+    ctx.fillText(line, bx + maxW / 2 + shake, by + 14 + i * lineHeight);
   });
 }
 
@@ -968,148 +1307,96 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
-// ===================== ENEMY AI (SUPER EASY) =====================
+// ===================== ENEMY AI =====================
 function moveEnemies() {
+  const d = DIFF[difficulty];
   enemies.forEach(e => {
     e.moveTimer++;
-    // VERY SLOW enemies
-    const speed = powerMode ? 25 : (level === 1 ? 20 : level === 2 ? 18 : 16);
+    const speed = powerMode ? 28 : d.enemySpeed[level - 1];
     if (e.moveTimer < speed) return;
     e.moveTimer = 0;
     e.scared = powerMode;
 
-    const head = snake[0];
+    const head = train[0];
     let targetDir;
 
     if (powerMode) {
       targetDir = { x: Math.sign(e.x - head.x) || 1, y: Math.sign(e.y - head.y) || 1 };
+    } else if (Math.random() < d.chase) {
+      targetDir = { x: Math.sign(head.x - e.x), y: Math.sign(head.y - e.y) };
+      if (Math.random() < 0.5) targetDir = { x: targetDir.x, y: 0 };
+      else targetDir = { x: 0, y: targetDir.y };
     } else {
-      // Only 15% chance to chase = super easy
-      if (Math.random() < 0.15) {
-        targetDir = { x: Math.sign(head.x - e.x), y: Math.sign(head.y - e.y) };
-        if (Math.random() < 0.5) targetDir = { x: targetDir.x, y: 0 };
-        else targetDir = { x: 0, y: targetDir.y };
-      } else {
-        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
-        targetDir = dirs[Math.floor(Math.random() * 4)];
-      }
+      const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+      targetDir = dirs[Math.floor(Math.random() * 4)];
     }
 
     if (targetDir.x === 0 && targetDir.y === 0) targetDir = { x: 1, y: 0 };
-
     const nx = e.x + targetDir.x;
     const ny = e.y + targetDir.y;
-
     if (!walls.has(`${nx},${ny}`) && nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
-      e.x = nx;
-      e.y = ny;
-      e.dir = targetDir;
+      e.x = nx; e.y = ny; e.dir = targetDir;
     } else {
-      const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
-      for (const d of dirs) {
-        const nnx = e.x + d.x;
-        const nny = e.y + d.y;
+      for (const dd of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]) {
+        const nnx = e.x + dd.x, nny = e.y + dd.y;
         if (!walls.has(`${nnx},${nny}`) && nnx >= 0 && nnx < COLS && nny >= 0 && nny < ROWS) {
-          e.x = nnx;
-          e.y = nny;
-          e.dir = d;
-          break;
+          e.x = nnx; e.y = nny; e.dir = dd; break;
         }
       }
     }
   });
 }
 
-// ===================== FILIPPO AI =====================
 function moveFilippo() {
   if (!filippo) return;
   filippo.moveTimer++;
-  filippo.guitarFrame++;
 
   const isBoss = !!boss;
-  // Filippo moves slowly, wandering around
-  const speed = isBoss ? 12 : 18;
+  const speed = isBoss ? 14 : 20;
   const fSize = isBoss ? 3 : 2;
 
   if (filippo.moveTimer >= speed) {
     filippo.moveTimer = 0;
+    const head = train[0];
 
-    const head = snake[0];
-
-    if (isBoss) {
-      // Boss: lazily chase player
-      let dx = Math.sign(head.x - filippo.x - 1);
-      let dy = Math.sign(head.y - filippo.y - 1);
-      if (Math.random() < 0.5) {
-        if (Math.abs(head.x - filippo.x) > Math.abs(head.y - filippo.y)) dy = 0;
-        else dx = 0;
-      }
-      // 30% chance to just wander (easy boss)
-      if (Math.random() < 0.3) {
-        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
-        const rd = dirs[Math.floor(Math.random() * 4)];
-        dx = rd.x; dy = rd.y;
-      }
-
-      const nx = filippo.x + dx;
-      const ny = filippo.y + dy;
-      let canMove = true;
-      for (let bx = 0; bx < fSize; bx++) {
-        for (let by = 0; by < fSize; by++) {
-          if (walls.has(`${nx + bx},${ny + by}`)) canMove = false;
-        }
-      }
-      if (nx < 1 || nx + fSize - 1 >= COLS - 1 || ny < 1 || ny + fSize - 1 >= ROWS - 1) canMove = false;
-      if (canMove) {
-        if (dx < 0) filippo.facingLeft = true;
-        if (dx > 0) filippo.facingLeft = false;
-        filippo.x = nx;
-        filippo.y = ny;
-      }
+    let dx, dy;
+    if (isBoss && Math.random() < 0.6) {
+      dx = Math.sign(head.x - filippo.x - 1);
+      dy = Math.sign(head.y - filippo.y - 1);
+      if (Math.random() < 0.5) dy = 0; else dx = 0;
     } else {
-      // Non-boss: random wander, avoid player
       const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }, { x: 0, y: 0 }];
       const rd = dirs[Math.floor(Math.random() * dirs.length)];
-      const nx = filippo.x + rd.x;
-      const ny = filippo.y + rd.y;
-      let canMove = true;
-      for (let bx = 0; bx < fSize; bx++) {
-        for (let by = 0; by < fSize; by++) {
-          if (walls.has(`${nx + bx},${ny + by}`)) canMove = false;
-        }
-      }
-      if (nx < 1 || nx + fSize - 1 >= COLS - 1 || ny < 1 || ny + fSize - 1 >= ROWS - 1) canMove = false;
-      if (canMove) {
-        if (rd.x < 0) filippo.facingLeft = true;
-        if (rd.x > 0) filippo.facingLeft = false;
-        filippo.x = nx;
-        filippo.y = ny;
-      }
+      dx = rd.x; dy = rd.y;
     }
 
-    // Boss spawns enemies occasionally (but slowly)
-    if (isBoss && Math.random() < 0.15 && enemies.length < 4) {
-      const side = Math.floor(Math.random() * 4);
-      let ex, ey;
-      if (side === 0) { ex = 2; ey = Math.floor(Math.random() * (ROWS - 4)) + 2; }
-      else if (side === 1) { ex = COLS - 3; ey = Math.floor(Math.random() * (ROWS - 4)) + 2; }
-      else if (side === 2) { ex = Math.floor(Math.random() * (COLS - 4)) + 2; ey = 2; }
-      else { ex = Math.floor(Math.random() * (COLS - 4)) + 2; ey = ROWS - 3; }
-      enemies.push({
-        x: ex, y: ey,
-        type: Math.random() < 0.5 ? 'beer' : 'don',
-        dir: { x: 0, y: 1 }, moveTimer: 0, scared: false
-      });
+    const nx = filippo.x + dx, ny = filippo.y + dy;
+    let canMove = true;
+    for (let bx = 0; bx < fSize; bx++)
+      for (let by = 0; by < fSize; by++)
+        if (walls.has(`${nx + bx},${ny + by}`)) canMove = false;
+    if (nx < 1 || nx + fSize - 1 >= COLS - 1 || ny < 1 || ny + fSize - 1 >= ROWS - 1) canMove = false;
+    if (canMove) {
+      if (dx < 0) filippo.facingLeft = true;
+      if (dx > 0) filippo.facingLeft = false;
+      filippo.x = nx; filippo.y = ny;
+    }
+
+    // Boss spawns enemies
+    if (isBoss && Math.random() < 0.12 && enemies.length < 3) {
+      const ex = 2 + Math.floor(Math.random() * (COLS - 4));
+      const ey = [2, ROWS - 3][Math.floor(Math.random() * 2)];
+      enemies.push({ x: ex, y: ey, type: Math.random() < 0.5 ? 'pilus' : 'sgs', dir: { x: 0, y: 1 }, moveTimer: 0, scared: false, wingFrame: 0 });
       spawnParticles(ex, ey, '#e94560', 5);
     }
   }
 
-  // GRANNO DURO bubble logic!
+  // Bubble
   if (filippo.bubbleTimer > 0) {
     filippo.bubbleTimer--;
-  } else if (Math.random() < 0.008) { // randomly shout
+  } else if (Math.random() < 0.01) {
     filippo.bubbleText = FILIPPO_QUOTES[Math.floor(Math.random() * FILIPPO_QUOTES.length)];
-    filippo.bubbleTimer = 90 + Math.floor(Math.random() * 60); // show for ~2-3 seconds
+    filippo.bubbleTimer = 90 + Math.floor(Math.random() * 60);
     playGranno();
   }
 }
@@ -1117,79 +1404,102 @@ function moveFilippo() {
 // ===================== UPDATE =====================
 function update() {
   frameCount++;
+  if (state !== 'playing' && state !== 'enteringMill') return;
 
-  if (state !== 'playing') return;
-
-  if (frameCount % 8 === 0) mouthOpen = !mouthOpen;
-
-  // Power mode timer (lasts longer = easy)
-  if (powerMode) {
-    powerTimer--;
-    if (powerTimer <= 0) {
-      powerMode = false;
-      enemies.forEach(e => e.scared = false);
+  if (state === 'enteringMill') {
+    enteringMillTimer--;
+    if (enteringMillTimer <= 0) {
+      if (level < 3) {
+        state = 'levelComplete';
+        levelCompleteTimer = 120;
+        playLevelUp();
+      } else {
+        // Level 3: mill doesn't end level, must defeat boss
+      }
     }
+    return;
   }
 
-  // Snake movement - SLOW
+  if (powerMode) {
+    powerTimer--;
+    if (powerTimer <= 0) { powerMode = false; enemies.forEach(e => e.scared = false); }
+  }
+
+  // Check mill open
+  if (!millOpen && grainCollected >= grainNeeded && !boss) {
+    millOpen = true;
+    playMillOpen();
+    spawnParticles(mill.x + 1, mill.y + 1, '#ffd700', 15);
+  }
+
+  // Train movement
   if (frameCount % gameSpeed === 0) {
     dir = nextDir;
-    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    const head = { x: train[0].x + dir.x, y: train[0].y + dir.y };
 
-    // Wall collision
-    if (walls.has(`${head.x},${head.y}`) || head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-      handleDeath();
-      return;
-    }
-
-    // Self collision
-    for (let i = 1; i < snake.length; i++) {
-      if (snake[i].x === head.x && snake[i].y === head.y) {
-        handleDeath();
-        return;
+    // Mill entry check
+    if (millOpen && !boss) {
+      for (let mx = 0; mx < 3; mx++) {
+        for (let my = 0; my < 3; my++) {
+          if (head.x === mill.x + mx && head.y === mill.y + my) {
+            state = 'enteringMill';
+            enteringMillTimer = 60;
+            playTrainWhistle();
+            spawnParticles(mill.x + 1, mill.y + 1, '#ffd700', 20);
+            score += 500;
+            updateHUD();
+            return;
+          }
+        }
       }
     }
 
-    snake.unshift(head);
+    // Wall collision
+    if (walls.has(`${head.x},${head.y}`) || head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+      handleDeath(); return;
+    }
 
-    // Eat corn
+    // Self collision
+    for (let i = 1; i < train.length; i++) {
+      if (train[i].x === head.x && train[i].y === head.y) { handleDeath(); return; }
+    }
+
+    train.unshift(head);
+
+    // Eat grain
     let ate = false;
-    for (let i = corn.length - 1; i >= 0; i--) {
-      if (corn[i].x === head.x && corn[i].y === head.y) {
-        if (corn[i].power) {
+    for (let i = grain.length - 1; i >= 0; i--) {
+      if (grain[i].x === head.x && grain[i].y === head.y) {
+        if (grain[i].power) {
           powerMode = true;
-          powerTimer = 200; // VERY LONG power mode
+          powerTimer = DIFF[difficulty].powerDur;
           enemies.forEach(e => e.scared = true);
           playPower();
           spawnParticles(head.x, head.y, '#ffd700', 10);
           score += 50;
         } else {
           score += 10;
+          grainCollected++;
           playEat();
-          spawnParticles(head.x, head.y, '#f0c040', 3);
+          spawnParticles(head.x, head.y, '#daa520', 3);
         }
-        corn.splice(i, 1);
-        cornEaten++;
+        grain.splice(i, 1);
         ate = true;
         break;
       }
     }
-
-    if (!ate) {
-      snake.pop();
-    }
+    if (!ate) train.pop();
 
     // Enemy collision
     for (let i = enemies.length - 1; i >= 0; i--) {
       if (enemies[i].x === head.x && enemies[i].y === head.y) {
         if (powerMode && enemies[i].scared) {
           score += 200;
-          spawnParticles(enemies[i].x, enemies[i].y, enemies[i].type === 'beer' ? '#daa520' : '#44cc44', 8);
+          spawnParticles(enemies[i].x, enemies[i].y, enemies[i].type === 'pilus' ? '#8a5800' : '#ff8800', 8);
           playEat();
           enemies.splice(i, 1);
         } else {
-          handleDeath();
-          return;
+          handleDeath(); return;
         }
       }
     }
@@ -1201,7 +1511,6 @@ function update() {
         for (let by = 0; by < fSize; by++) {
           if (head.x === filippo.x + bx && head.y === filippo.y + by) {
             if (boss && powerMode) {
-              // Damage boss
               bossHP--;
               filippo.flashTimer = 10;
               score += 100;
@@ -1210,13 +1519,10 @@ function update() {
               shakeTimer = 8;
               powerMode = false;
               powerTimer = 0;
-              // Boss shouts when hit
               filippo.bubbleText = 'AAAH!\nGRANNO DURO!!';
               filippo.bubbleTimer = 60;
-
               if (bossHP <= 0) {
                 spawnParticles(filippo.x + 1, filippo.y + 1, '#ffd700', 30);
-                spawnParticles(filippo.x + 1, filippo.y + 1, '#e94560', 20);
                 score += 2000;
                 filippo = null;
                 boss = null;
@@ -1225,85 +1531,76 @@ function update() {
                 return;
               }
             } else if (boss) {
-              handleDeath();
-              return;
+              handleDeath(); return;
             }
-            // Non-boss Filippo: no collision damage, just bounce snake
-            // (he's just vibing, playing guitar)
           }
         }
       }
     }
 
-    // Level completion (50% corn = easy)
-    if (level < 3 && cornEaten >= totalCorn * 0.5) {
-      state = 'levelComplete';
-      levelCompleteTimer = 120;
-      playLevelUp();
-      return;
-    }
+    updateHUD();
   }
 
   moveEnemies();
   moveFilippo();
 
-  // Update particles
   particles = particles.filter(p => {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    p.vy += 0.1;
+    p.x += p.vx; p.y += p.vy; p.life--; p.vy += 0.1;
     return p.life > 0;
   });
 
   if (shakeTimer > 0) shakeTimer--;
-  updateHUD();
 }
 
 function handleDeath() {
   playDie();
   lives--;
-  spawnParticles(snake[0].x, snake[0].y, '#ff0000', 15);
-
-  if (lives <= 0) {
-    state = 'gameOver';
-  } else {
-    state = 'dying';
-    deathTimer = 60;
-  }
+  spawnParticles(train[0].x, train[0].y, '#ff0000', 15);
+  if (lives <= 0) state = 'gameOver';
+  else { state = 'dying'; deathTimer = 60; }
   updateHUD();
 }
 
 // ===================== DRAW =====================
 function draw() {
   ctx.save();
-  if (shakeTimer > 0) {
-    ctx.translate(Math.random() * 6 - 3, Math.random() * 6 - 3);
-  }
+  if (shakeTimer > 0) ctx.translate(Math.random() * 6 - 3, Math.random() * 6 - 3);
 
-  // Background
   ctx.fillStyle = '#0a0015';
   ctx.fillRect(0, 0, W, H);
 
   // Grid
-  ctx.strokeStyle = 'rgba(50, 20, 80, 0.12)';
+  ctx.strokeStyle = 'rgba(50, 20, 80, 0.1)';
   ctx.lineWidth = 0.5;
-  for (let x = 0; x < COLS; x++) {
-    ctx.beginPath(); ctx.moveTo(x * TILE, 0); ctx.lineTo(x * TILE, H); ctx.stroke();
-  }
-  for (let y = 0; y < ROWS; y++) {
-    ctx.beginPath(); ctx.moveTo(0, y * TILE); ctx.lineTo(W, y * TILE); ctx.stroke();
+  for (let x = 0; x < COLS; x++) { ctx.beginPath(); ctx.moveTo(x * TILE, 0); ctx.lineTo(x * TILE, H); ctx.stroke(); }
+  for (let y = 0; y < ROWS; y++) { ctx.beginPath(); ctx.moveTo(0, y * TILE); ctx.lineTo(W, y * TILE); ctx.stroke(); }
+
+  // Rail tracks under train
+  if (state === 'playing' || state === 'paused' || state === 'dying' || state === 'levelComplete' || state === 'enteringMill') {
+    ctx.strokeStyle = 'rgba(100, 80, 60, 0.15)';
+    ctx.lineWidth = 2;
+    train.forEach(seg => {
+      const px = seg.x * TILE;
+      const py = seg.y * TILE;
+      ctx.fillStyle = 'rgba(80, 60, 40, 0.1)';
+      ctx.fillRect(px, py + TILE - 3, TILE, 2);
+      // Sleepers
+      ctx.fillRect(px + 2, py + TILE - 5, 2, 6);
+      ctx.fillRect(px + TILE - 4, py + TILE - 5, 2, 6);
+    });
   }
 
   if (state === 'title') { drawTitleScreen(); ctx.restore(); return; }
+  if (state === 'difficulty') { drawDifficultyScreen(); ctx.restore(); return; }
   if (state === 'gameOver') { drawGameOverScreen(); ctx.restore(); return; }
   if (state === 'victory') { drawVictoryScreen(); ctx.restore(); return; }
 
   drawWalls();
-  drawCorn();
+  drawMill();
+  drawGrain();
   drawEnemies();
   drawFilippo();
-  drawSnake();
+  drawTrain();
   drawParticles();
 
   if (state === 'paused') {
@@ -1322,10 +1619,16 @@ function draw() {
     deathTimer--;
     ctx.fillStyle = `rgba(255,0,0,${deathTimer / 120})`;
     ctx.fillRect(0, 0, W, H);
-    if (deathTimer <= 0) {
-      state = 'playing';
-      initLevel(level);
-    }
+    if (deathTimer <= 0) { state = 'playing'; initLevel(level); }
+  }
+
+  if (state === 'enteringMill') {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#ffd700';
+    ctx.font = '16px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    ctx.fillText('ENTERING MILL...', W / 2, H / 2);
   }
 
   if (state === 'levelComplete') {
@@ -1333,27 +1636,21 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#00ff88';
-    ctx.font = '20px "Press Start 2P"';
+    ctx.font = '18px "Press Start 2P"';
     ctx.textAlign = 'center';
     ctx.fillText(`LEVEL ${level} CLEAR!`, W / 2, H / 2 - 10);
     ctx.fillStyle = '#ffd700';
     ctx.font = '12px "Press Start 2P"';
     ctx.fillText(`SCORE: ${score}`, W / 2, H / 2 + 20);
-
-    if (levelCompleteTimer <= 0) {
-      state = 'playing';
-      initLevel(level + 1);
-    }
+    if (levelCompleteTimer <= 0) { state = 'playing'; initLevel(level + 1); }
   }
 
   ctx.restore();
 }
 
-// ===================== TITLE SCREEN =====================
+// ===================== SCREENS =====================
 function drawTitleScreen() {
   const t = frameCount * 0.02;
-
-  // Animated bg
   for (let i = 0; i < 20; i++) {
     const x = (Math.sin(t + i * 0.7) * 0.5 + 0.5) * W;
     const y = (Math.cos(t + i * 1.1) * 0.5 + 0.5) * H;
@@ -1365,100 +1662,114 @@ function drawTitleScreen() {
 
   // Title
   ctx.fillStyle = '#8b0000';
-  ctx.font = '28px "Press Start 2P"';
+  ctx.font = '22px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('HADÍK', W / 2 + 3, 80 + 3);
+  ctx.fillText('TRAIN AND', W / 2 + 2, 72);
+  ctx.fillText('GRAIN', W / 2 + 2, 102);
   ctx.fillStyle = '#e94560';
-  ctx.fillText('HADÍK', W / 2, 80);
+  ctx.fillText('TRAIN AND', W / 2, 70);
+  ctx.fillText('GRAIN', W / 2, 100);
 
   ctx.fillStyle = '#ffd700';
-  ctx.font = '12px "Press Start 2P"';
-  ctx.fillText('v PRAHE', W / 2, 110);
-
-  ctx.fillStyle = '#fff';
   ctx.font = '9px "Press Start 2P"';
-  ctx.fillText('HARD ROCK CAFE EDITION', W / 2, 138);
+  ctx.fillText('HARD ROCK CAFE PRAHA', W / 2, 128);
 
-  // Draw Filippo on title screen!
-  const titleFilippoX = W / 2;
-  const titleFilippoY = 200;
+  // Filippo on title
   const bob = Math.sin(frameCount * 0.05) * 3;
-
-  // Body
+  const fx = W / 2, fy = 190;
   ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(titleFilippoX - 15, titleFilippoY + 15 + bob, 30, 35);
-  // Head
+  ctx.fillRect(fx - 15, fy + 15 + bob, 30, 35);
   ctx.fillStyle = '#f0c8a0';
-  ctx.beginPath();
-  ctx.arc(titleFilippoX, titleFilippoY + bob, 14, 0, Math.PI * 2);
-  ctx.fill();
-  // Long hair
+  ctx.beginPath(); ctx.arc(fx, fy + bob, 14, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#1a0a00';
-  ctx.beginPath();
-  ctx.arc(titleFilippoX, titleFilippoY - 4 + bob, 15, Math.PI * 0.8, Math.PI * 2.2);
-  ctx.fill();
-  // Left hair
-  ctx.beginPath();
-  ctx.moveTo(titleFilippoX - 15, titleFilippoY + bob);
-  ctx.quadraticCurveTo(titleFilippoX - 20, titleFilippoY + 30 + bob, titleFilippoX - 12, titleFilippoY + 45 + bob);
-  ctx.lineTo(titleFilippoX - 10, titleFilippoY + bob);
-  ctx.fill();
-  // Right hair
-  ctx.beginPath();
-  ctx.moveTo(titleFilippoX + 15, titleFilippoY + bob);
-  ctx.quadraticCurveTo(titleFilippoX + 20, titleFilippoY + 30 + bob, titleFilippoX + 12, titleFilippoY + 45 + bob);
-  ctx.lineTo(titleFilippoX + 10, titleFilippoY + bob);
-  ctx.fill();
-  // Eyes
+  ctx.beginPath(); ctx.arc(fx, fy - 4 + bob, 15, Math.PI * 0.8, Math.PI * 2.2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(fx - 15, fy + bob); ctx.quadraticCurveTo(fx - 20, fy + 30 + bob, fx - 12, fy + 45 + bob); ctx.lineTo(fx - 10, fy + bob); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(fx + 15, fy + bob); ctx.quadraticCurveTo(fx + 20, fy + 30 + bob, fx + 12, fy + 45 + bob); ctx.lineTo(fx + 10, fy + bob); ctx.fill();
   ctx.fillStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(titleFilippoX - 5, titleFilippoY + bob, 2, 0, Math.PI * 2);
-  ctx.arc(titleFilippoX + 5, titleFilippoY + bob, 2, 0, Math.PI * 2);
-  ctx.fill();
-  // Guitar
+  ctx.beginPath(); ctx.arc(fx - 5, fy + bob, 2, 0, Math.PI * 2); ctx.arc(fx + 5, fy + bob, 2, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#cc2200';
-  ctx.beginPath();
-  ctx.ellipse(titleFilippoX - 22, titleFilippoY + 28 + bob, 10, 12, -0.2, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.ellipse(fx - 22, fy + 28 + bob, 10, 12, -0.2, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#8B4513';
-  ctx.fillRect(titleFilippoX - 24, titleFilippoY + 5 + bob, 4, 22);
-  // Phone
+  ctx.fillRect(fx - 24, fy + 5 + bob, 4, 22);
   ctx.fillStyle = '#222';
-  ctx.fillRect(titleFilippoX + 18, titleFilippoY + 12 + bob, 8, 12);
+  ctx.fillRect(fx + 18, fy + 12 + bob, 8, 12);
   ctx.fillStyle = '#4488ff';
-  ctx.fillRect(titleFilippoX + 19, titleFilippoY + 14 + bob, 6, 8);
+  ctx.fillRect(fx + 19, fy + 14 + bob, 6, 8);
 
-  // Filippo's bubble on title
   if (Math.floor(frameCount / 40) % 3 !== 2) {
-    drawSpeechBubble(titleFilippoX, titleFilippoY - 30 + bob, 'GRANNO DURO!');
+    drawSpeechBubble(fx, fy - 30 + bob, Math.floor(frameCount / 80) % 2 === 0 ? 'GRANNO DURO!' : 'NEWS! NEWS!');
   }
 
-  // Characters
-  ctx.font = '9px "Press Start 2P"';
-  ctx.fillStyle = '#f0c040';
-  ctx.fillText('KUKURICA = žer ju!', W / 2, 290);
-  ctx.fillStyle = '#daa520';
-  ctx.fillText('PIVO + DON = vyhni sa!', W / 2, 310);
-  ctx.fillStyle = '#e94560';
-  ctx.fillText('FILIPPO = GRANNO DURO!', W / 2, 330);
-
-  // Levels
-  ctx.fillStyle = '#888';
+  // Legend
   ctx.font = '8px "Press Start 2P"';
-  ctx.fillText('LVL 1: HARD ROCK CAFE', W / 2, 360);
-  ctx.fillText('LVL 2: KARLOV MOST', W / 2, 378);
-  ctx.fillText('LVL 3: BOSS FILIPPO!', W / 2, 396);
+  ctx.fillStyle = '#daa520'; ctx.fillText('GRAIN = collect it!', W / 2, 275);
+  ctx.fillStyle = '#8a5800'; ctx.fillText('PILUS = beetle threat!', W / 2, 293);
+  ctx.fillStyle = '#ff8800'; ctx.fillText('SGS = inspector threat!', W / 2, 311);
+  ctx.fillStyle = '#e94560'; ctx.fillText('FILIPPO = GRANNO DURO!', W / 2, 329);
 
-  // Start
+  ctx.fillStyle = '#888';
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillText('LVL 1: HARD ROCK CAFE', W / 2, 355);
+  ctx.fillText('LVL 2: KARLOV MOST', W / 2, 370);
+  ctx.fillText('LVL 3: BOSS FILIPPO!', W / 2, 385);
+
   if (Math.floor(frameCount / 30) % 2 === 0) {
     ctx.fillStyle = '#ffd700';
     ctx.font = '12px "Press Start 2P"';
-    ctx.fillText('PRESS START', W / 2, 432);
+    ctx.fillText('PRESS START', W / 2, 420);
   }
 
   ctx.fillStyle = '#444';
   ctx.font = '7px "Press Start 2P"';
-  ctx.fillText('ARROWS = MOVE  |  P = PAUSE', W / 2, 460);
+  ctx.fillText('ARROWS=MOVE P=PAUSE M=MUSIC', W / 2, 455);
+}
+
+function drawDifficultyScreen() {
+  ctx.fillStyle = 'rgba(10, 0, 20, 0.95)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#e94560';
+  ctx.font = '20px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('SELECT', W / 2, 100);
+  ctx.fillText('DIFFICULTY', W / 2, 130);
+
+  const options = [
+    { name: 'EASY', desc: '7 lives, slow, chill', color: '#00ff88' },
+    { name: 'MEDIUM', desc: '5 lives, balanced', color: '#ffd700' },
+    { name: 'HARD', desc: '3 lives, fast, brutal', color: '#e94560' }
+  ];
+
+  options.forEach((opt, i) => {
+    const y = 200 + i * 70;
+    const selected = i === difficultySelection;
+
+    if (selected) {
+      ctx.fillStyle = 'rgba(233, 69, 96, 0.15)';
+      ctx.fillRect(W / 2 - 150, y - 20, 300, 55);
+      ctx.strokeStyle = opt.color;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(W / 2 - 150, y - 20, 300, 55);
+
+      // Arrow
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '14px "Press Start 2P"';
+      ctx.fillText('▶', W / 2 - 130, y + 5);
+    }
+
+    ctx.fillStyle = selected ? opt.color : '#666';
+    ctx.font = selected ? '16px "Press Start 2P"' : '14px "Press Start 2P"';
+    ctx.fillText(opt.name, W / 2, y);
+
+    ctx.fillStyle = selected ? '#aaa' : '#444';
+    ctx.font = '8px "Press Start 2P"';
+    ctx.fillText(opt.desc, W / 2, y + 22);
+  });
+
+  ctx.fillStyle = '#888';
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillText('UP/DOWN = SELECT', W / 2, 430);
+  ctx.fillText('START/ENTER = PLAY', W / 2, 450);
 }
 
 function drawGameOverScreen() {
@@ -1478,7 +1789,6 @@ function drawGameOverScreen() {
   ctx.font = '10px "Press Start 2P"';
   ctx.fillText(`REACHED LEVEL ${level}`, W / 2, H / 2 + 30);
 
-  // Filippo taunts
   ctx.fillStyle = '#e94560';
   ctx.font = '8px "Press Start 2P"';
   ctx.fillText('FILIPPO: "GRANNO DURO,', W / 2, H / 2 + 60);
@@ -1493,12 +1803,10 @@ function drawGameOverScreen() {
 
 function drawVictoryScreen() {
   const t = frameCount * 0.03;
-  // Fireworks
   for (let i = 0; i < 25; i++) {
     const x = (Math.sin(t * 2 + i * 1.3) * 0.45 + 0.5) * W;
     const y = (Math.cos(t * 1.7 + i * 0.9) * 0.35 + 0.3) * H;
-    const colors = ['#e94560', '#ffd700', '#00ff88', '#3498db', '#ff6b6b', '#cc2200'];
-    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillStyle = ['#e94560', '#ffd700', '#00ff88', '#3498db', '#cc2200'][i % 5];
     ctx.globalAlpha = 0.5 + Math.sin(t * 3 + i) * 0.3;
     ctx.beginPath();
     ctx.arc(x, y, 3 + Math.sin(t + i) * 2, 0, Math.PI * 2);
@@ -1513,27 +1821,24 @@ function drawVictoryScreen() {
 
   ctx.fillStyle = '#00ff88';
   ctx.font = '11px "Press Start 2P"';
-  ctx.fillText('FILIPPO GUIDETTI', W / 2, 150);
-  ctx.fillText('HAS BEEN DEFEATED!', W / 2, 172);
+  ctx.fillText('FILIPPO GUIDETTI', W / 2, 155);
+  ctx.fillText('HAS BEEN DEFEATED!', W / 2, 177);
 
   ctx.fillStyle = '#fff';
   ctx.font = '9px "Press Start 2P"';
-  ctx.fillText('His guitar is silent.', W / 2, 210);
-  ctx.fillText('His phone is dead.', W / 2, 230);
-  ctx.fillText('No more GRANNO DURO.', W / 2, 250);
+  ctx.fillText('His guitar is silent.', W / 2, 215);
+  ctx.fillText('His phone is dead.', W / 2, 235);
+  ctx.fillText('No more GRANNO DURO.', W / 2, 255);
+  ctx.fillText('No more NEWS NEWS.', W / 2, 275);
 
   ctx.fillStyle = '#e94560';
   ctx.font = '9px "Press Start 2P"';
-  ctx.fillText('PRAHA IS SAFE FROM', W / 2, 290);
-  ctx.fillText('DON MYKOTOXÍNOV!', W / 2, 310);
+  ctx.fillText('THE TRAIN DELIVERED', W / 2, 310);
+  ctx.fillText('ALL THE GRAIN SAFELY!', W / 2, 330);
 
   ctx.fillStyle = '#ffd700';
   ctx.font = '16px "Press Start 2P"';
-  ctx.fillText(`FINAL SCORE: ${score}`, W / 2, 360);
-
-  ctx.fillStyle = '#daa520';
-  ctx.font = '8px "Press Start 2P"';
-  ctx.fillText('HARD ROCK CAFE CELEBRATES!', W / 2, 400);
+  ctx.fillText(`FINAL SCORE: ${score}`, W / 2, 375);
 
   if (Math.floor(frameCount / 25) % 2 === 0) {
     ctx.fillStyle = '#ffd700';
