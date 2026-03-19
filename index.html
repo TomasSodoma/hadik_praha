@@ -7,7 +7,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-touch-callout: none; }
 
   body {
     background: #0a0a0a;
@@ -18,6 +18,9 @@
     font-family: 'Press Start 2P', monospace;
     overflow: hidden;
     touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-text-size-adjust: none;
   }
 
   #arcade-cabinet {
@@ -122,8 +125,10 @@
     align-items: center;
     justify-content: center;
     user-select: none;
+    -webkit-user-select: none;
     transition: all 0.1s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   .dpad-btn:active, .dpad-btn.pressed {
@@ -158,6 +163,9 @@
     color: #fff;
     text-shadow: 0 0 5px currentColor;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   #btn-start {
@@ -644,18 +652,100 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// D-pad
+// D-pad — iOS-safe touch handling
 function setupButton(id, action) {
   const btn = document.getElementById(id);
-  const doAction = (e) => { e.preventDefault(); e.stopPropagation(); action(); btn.classList.add('pressed'); };
-  const endAction = (e) => { if(e) e.preventDefault(); btn.classList.remove('pressed'); };
-  btn.addEventListener('mousedown', doAction);
-  btn.addEventListener('mouseup', endAction);
-  btn.addEventListener('mouseleave', endAction);
-  btn.addEventListener('touchstart', doAction, { passive: false });
-  btn.addEventListener('touchend', endAction, { passive: false });
-  btn.addEventListener('touchcancel', endAction, { passive: false });
+  let isTouch = false;
+
+  btn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isTouch = true;
+    action();
+    btn.classList.add('pressed');
+  }, { passive: false });
+
+  btn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    btn.classList.remove('pressed');
+    setTimeout(() => { isTouch = false; }, 300);
+  }, { passive: false });
+
+  btn.addEventListener('touchcancel', (e) => {
+    e.preventDefault();
+    btn.classList.remove('pressed');
+    setTimeout(() => { isTouch = false; }, 300);
+  }, { passive: false });
+
+  // Mouse only if not touch (prevents double-fire on iOS)
+  btn.addEventListener('mousedown', (e) => {
+    if (isTouch) return;
+    e.preventDefault();
+    action();
+    btn.classList.add('pressed');
+  });
+  btn.addEventListener('mouseup', () => { if (!isTouch) btn.classList.remove('pressed'); });
+  btn.addEventListener('mouseleave', () => { if (!isTouch) btn.classList.remove('pressed'); });
 }
+
+// Swipe controls on canvas for mobile
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0;
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  touchStartTime = Date.now();
+
+  // Tap on canvas = start game if on title/difficulty/gameover
+  if (state === 'title') { state = 'difficulty'; return; }
+  if (state === 'gameOver' || state === 'victory') { state = 'difficulty'; return; }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (!e.changedTouches[0]) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const elapsed = Date.now() - touchStartTime;
+
+  // Tap (short, small movement)
+  if (dist < 15 && elapsed < 300) {
+    if (state === 'difficulty') {
+      // Tap top/bottom half to select, or just confirm
+      const rect = canvas.getBoundingClientRect();
+      const relY = (t.clientY - rect.top) / rect.height;
+      if (relY < 0.33) difficultySelection = 0;
+      else if (relY < 0.66) difficultySelection = 1;
+      else difficultySelection = 2;
+      difficulty = ['easy', 'medium', 'hard'][difficultySelection];
+      startGame();
+    }
+    return;
+  }
+
+  // Swipe (longer movement) — game controls
+  if (state === 'playing' && dist > 20) {
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal swipe
+      if (dx > 0 && dir.x !== -1) nextDir = { x: 1, y: 0 };
+      else if (dx < 0 && dir.x !== 1) nextDir = { x: -1, y: 0 };
+    } else {
+      // Vertical swipe
+      if (dy > 0 && dir.y !== -1) nextDir = { x: 0, y: 1 };
+      else if (dy < 0 && dir.y !== 1) nextDir = { x: 0, y: -1 };
+    }
+  }
+}, { passive: false });
+
+// Prevent iOS rubber-band scrolling
+document.body.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
 
 setupButton('btn-up', () => {
   if (state === 'difficulty') { difficultySelection = Math.max(0, difficultySelection - 1); }
@@ -668,20 +758,45 @@ setupButton('btn-down', () => {
 setupButton('btn-left', () => { if (state === 'playing' && dir.x !== 1) nextDir = { x: -1, y: 0 }; });
 setupButton('btn-right', () => { if (state === 'playing' && dir.x !== -1) nextDir = { x: 1, y: 0 }; });
 
-document.getElementById('btn-start').addEventListener('click', () => {
+function handleStart() {
   audioCtx.resume();
   if (state === 'title') state = 'difficulty';
   else if (state === 'difficulty') { difficulty = ['easy', 'medium', 'hard'][difficultySelection]; startGame(); }
   else if (state === 'gameOver' || state === 'victory') state = 'difficulty';
   else if (state === 'paused') state = 'playing';
-});
-document.getElementById('btn-start').addEventListener('touchstart', (e) => { e.preventDefault(); }, { passive: false });
+}
 
-document.getElementById('btn-pause').addEventListener('click', () => {
+function handlePause() {
   if (state === 'playing') state = 'paused';
   else if (state === 'paused') state = 'playing';
+}
+
+// iOS-safe action buttons
+let startIsTouch = false, pauseIsTouch = false, musicIsTouch = false;
+
+document.getElementById('btn-start').addEventListener('touchstart', (e) => {
+  e.preventDefault(); e.stopPropagation(); startIsTouch = true; handleStart();
+  setTimeout(() => { startIsTouch = false; }, 300);
+}, { passive: false });
+document.getElementById('btn-start').addEventListener('click', (e) => {
+  if (startIsTouch) return; handleStart();
 });
-document.getElementById('btn-music').addEventListener('click', toggleMusic);
+
+document.getElementById('btn-pause').addEventListener('touchstart', (e) => {
+  e.preventDefault(); e.stopPropagation(); pauseIsTouch = true; handlePause();
+  setTimeout(() => { pauseIsTouch = false; }, 300);
+}, { passive: false });
+document.getElementById('btn-pause').addEventListener('click', (e) => {
+  if (pauseIsTouch) return; handlePause();
+});
+
+document.getElementById('btn-music').addEventListener('touchstart', (e) => {
+  e.preventDefault(); e.stopPropagation(); musicIsTouch = true; toggleMusic();
+  setTimeout(() => { musicIsTouch = false; }, 300);
+}, { passive: false });
+document.getElementById('btn-music').addEventListener('click', (e) => {
+  if (musicIsTouch) return; toggleMusic();
+});
 
 function startGame() {
   audioCtx.resume();
