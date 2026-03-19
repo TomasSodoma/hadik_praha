@@ -716,16 +716,25 @@ canvas.addEventListener('touchend', (e) => {
   const elapsed = Date.now() - touchStartTime;
 
   // Tap (short, small movement)
-  if (dist < 15 && elapsed < 300) {
+  if (dist < 20 && elapsed < 400) {
     if (state === 'difficulty') {
-      // Tap top/bottom half to select, or just confirm
+      // Map touch position to canvas coordinates
       const rect = canvas.getBoundingClientRect();
-      const relY = (t.clientY - rect.top) / rect.height;
-      if (relY < 0.33) difficultySelection = 0;
-      else if (relY < 0.66) difficultySelection = 1;
-      else difficultySelection = 2;
-      difficulty = ['easy', 'medium', 'hard'][difficultySelection];
-      startGame();
+      const scaleX = W / rect.width;
+      const scaleY = H / rect.height;
+      const canvasX = (t.clientX - rect.left) * scaleX;
+      const canvasY = (t.clientY - rect.top) * scaleY;
+
+      // Check if tapped on a difficulty button
+      for (const btn of diffButtons) {
+        if (canvasX >= btn.x && canvasX <= btn.x + btn.w &&
+            canvasY >= btn.y && canvasY <= btn.y + btn.h) {
+          difficultySelection = btn.index;
+          difficulty = ['easy', 'medium', 'hard'][btn.index];
+          startGame();
+          return;
+        }
+      }
     }
     return;
   }
@@ -1766,88 +1775,273 @@ function draw() {
 // ===================== SCREENS =====================
 function drawTitleScreen() {
   const t = frameCount * 0.02;
-  for (let i = 0; i < 20; i++) {
+
+  // SVETLEJŠIE POZADIE - warm dark brown/amber tone
+  ctx.fillStyle = '#1a1208';
+  ctx.fillRect(0, 0, W, H);
+
+  // Warm ambient glow circles
+  for (let i = 0; i < 25; i++) {
     const x = (Math.sin(t + i * 0.7) * 0.5 + 0.5) * W;
     const y = (Math.cos(t + i * 1.1) * 0.5 + 0.5) * H;
-    ctx.fillStyle = `rgba(233, 69, 96, ${0.04 + Math.sin(t + i) * 0.02})`;
+    ctx.fillStyle = `rgba(255, 180, 50, ${0.06 + Math.sin(t + i) * 0.03})`;
     ctx.beginPath();
-    ctx.arc(x, y, 25 + Math.sin(t + i) * 10, 0, Math.PI * 2);
+    ctx.arc(x, y, 30 + Math.sin(t + i) * 15, 0, Math.PI * 2);
     ctx.fill();
   }
 
+  // Stage lights effect
+  const gradient = ctx.createRadialGradient(W/2, 0, 50, W/2, 0, 400);
+  gradient.addColorStop(0, 'rgba(233, 69, 96, 0.12)');
+  gradient.addColorStop(0.5, 'rgba(255, 150, 50, 0.06)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
+
+  // Spotlight on Filippo
+  const spotGrad = ctx.createRadialGradient(W/2, 220, 10, W/2, 220, 150);
+  spotGrad.addColorStop(0, 'rgba(255, 220, 100, 0.15)');
+  spotGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = spotGrad;
+  ctx.fillRect(0, 50, W, 350);
+
   // Title
-  ctx.fillStyle = '#8b0000';
+  ctx.fillStyle = '#5a1000';
   ctx.font = '22px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('TRAIN AND', W / 2 + 2, 72);
-  ctx.fillText('GRAIN', W / 2 + 2, 102);
+  ctx.fillText('TRAIN AND', W / 2 + 2, 52);
+  ctx.fillText('GRAIN', W / 2 + 2, 82);
   ctx.fillStyle = '#e94560';
-  ctx.fillText('TRAIN AND', W / 2, 70);
-  ctx.fillText('GRAIN', W / 2, 100);
+  ctx.fillText('TRAIN AND', W / 2, 50);
+  ctx.fillText('GRAIN', W / 2, 80);
 
   ctx.fillStyle = '#ffd700';
   ctx.font = '9px "Press Start 2P"';
-  ctx.fillText('HARD ROCK CAFE PRAHA', W / 2, 128);
+  ctx.fillText('HARD ROCK CAFE PRAHA', W / 2, 105);
 
-  // Filippo on title
-  const bob = Math.sin(frameCount * 0.05) * 3;
-  const fx = W / 2, fy = 190;
+  // ===== FILIPPO - VEĽKÝ, SKÁČUCI V POZADÍ =====
+  const jumpHeight = Math.abs(Math.sin(frameCount * 0.06)) * 25; // bouncing jump
+  const bob = -jumpHeight;
+  const headBang = Math.sin(frameCount * 0.12) * 8; // headbanging
+  const fx = W / 2, fy = 210;
+  const scale = 1.8; // BIGGER
+
+  ctx.save();
+  ctx.translate(fx, fy + bob);
+  ctx.scale(scale, scale);
+
+  // Shadow on ground
+  ctx.fillStyle = `rgba(0,0,0,${0.3 - jumpHeight * 0.008})`;
+  ctx.beginPath();
+  ctx.ellipse(0, 35 + jumpHeight / scale, 20, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // LEGS - jumping pose
+  const legKick = Math.sin(frameCount * 0.12) * 5;
+  ctx.fillStyle = '#2244aa';
+  ctx.fillRect(-8, 20, 6, 18 + legKick);
+  ctx.fillRect(2, 20, 6, 18 - legKick);
+  // Boots
   ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(fx - 15, fy + 15 + bob, 30, 35);
-  ctx.fillStyle = '#f0c8a0';
-  ctx.beginPath(); ctx.arc(fx, fy + bob, 14, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#1a0a00';
-  ctx.beginPath(); ctx.arc(fx, fy - 4 + bob, 15, Math.PI * 0.8, Math.PI * 2.2); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(fx - 15, fy + bob); ctx.quadraticCurveTo(fx - 20, fy + 30 + bob, fx - 12, fy + 45 + bob); ctx.lineTo(fx - 10, fy + bob); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(fx + 15, fy + bob); ctx.quadraticCurveTo(fx + 20, fy + 30 + bob, fx + 12, fy + 45 + bob); ctx.lineTo(fx + 10, fy + bob); ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.arc(fx - 5, fy + bob, 2, 0, Math.PI * 2); ctx.arc(fx + 5, fy + bob, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#cc2200';
-  ctx.beginPath(); ctx.ellipse(fx - 22, fy + 28 + bob, 10, 12, -0.2, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#8B4513';
-  ctx.fillRect(fx - 24, fy + 5 + bob, 4, 22);
-  ctx.fillStyle = '#222';
-  ctx.fillRect(fx + 18, fy + 12 + bob, 8, 12);
-  ctx.fillStyle = '#4488ff';
-  ctx.fillRect(fx + 19, fy + 14 + bob, 6, 8);
+  ctx.fillRect(-9, 36 + legKick, 8, 4);
+  ctx.fillRect(1, 36 - legKick, 8, 4);
 
-  if (Math.floor(frameCount / 40) % 3 !== 2) {
-    drawSpeechBubble(fx, fy - 30 + bob, Math.floor(frameCount / 80) % 2 === 0 ? 'GRANNO DURO!' : 'NEWS! NEWS!');
-  }
-
-  // Legend
-  ctx.font = '8px "Press Start 2P"';
-  ctx.fillStyle = '#daa520'; ctx.fillText('GRAIN = collect it!', W / 2, 275);
-  ctx.fillStyle = '#8a5800'; ctx.fillText('PILUS = beetle threat!', W / 2, 293);
-  ctx.fillStyle = '#ff8800'; ctx.fillText('SGS = inspector threat!', W / 2, 311);
-  ctx.fillStyle = '#e94560'; ctx.fillText('FILIPPO = GRANNO DURO!', W / 2, 329);
-
-  ctx.fillStyle = '#888';
-  ctx.font = '7px "Press Start 2P"';
-  ctx.fillText('LVL 1: HARD ROCK CAFE', W / 2, 355);
-  ctx.fillText('LVL 2: KARLOV MOST', W / 2, 370);
-  ctx.fillText('LVL 3: BOSS FILIPPO!', W / 2, 385);
-
-  if (Math.floor(frameCount / 30) % 2 === 0) {
-    ctx.fillStyle = '#ffd700';
-    ctx.font = '12px "Press Start 2P"';
-    ctx.fillText('PRESS START', W / 2, 420);
-  }
-
+  // BODY - leather jacket
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(-12, 2, 24, 20);
+  // Jacket collar
+  ctx.fillStyle = '#333';
+  ctx.fillRect(-10, 2, 20, 3);
+  // Belt
   ctx.fillStyle = '#444';
+  ctx.fillRect(-10, 19, 20, 3);
+  ctx.fillStyle = '#daa520';
+  ctx.fillRect(-3, 19, 6, 3);
+
+  // ARMS - raised playing guitar / holding phone
+  ctx.strokeStyle = '#f0c8a0';
+  ctx.lineWidth = 3;
+  // Left arm - guitar
+  ctx.beginPath();
+  ctx.moveTo(-10, 6);
+  ctx.lineTo(-18, -2 + headBang * 0.3);
+  ctx.stroke();
+  // Right arm - phone up
+  ctx.beginPath();
+  ctx.moveTo(10, 6);
+  ctx.lineTo(16, -5 + Math.sin(frameCount * 0.04) * 2);
+  ctx.stroke();
+
+  // HEAD with headbanging
+  ctx.save();
+  ctx.rotate(headBang * 0.02);
+  ctx.fillStyle = '#f0c8a0';
+  ctx.beginPath();
+  ctx.arc(0, -4, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // LONG HAIR - flowing with headbang
+  ctx.fillStyle = '#1a0a00';
+  ctx.beginPath();
+  ctx.arc(0, -7, 11, Math.PI * 0.8, Math.PI * 2.2);
+  ctx.fill();
+  // Left hair - long, flying
+  ctx.beginPath();
+  ctx.moveTo(-11, -3);
+  ctx.quadraticCurveTo(-16 + headBang * 0.5, 12, -9, 25);
+  ctx.lineTo(-7, -2);
+  ctx.fill();
+  // Right hair
+  ctx.beginPath();
+  ctx.moveTo(11, -3);
+  ctx.quadraticCurveTo(16 - headBang * 0.5, 12, 9, 25);
+  ctx.lineTo(7, -2);
+  ctx.fill();
+  // Extra flying strands
+  ctx.strokeStyle = '#2a1500';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.quadraticCurveTo(-14 + headBang, 15, -7, 28);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.quadraticCurveTo(14 - headBang, 15, 7, 28);
+  ctx.stroke();
+
+  // Eyes - excited!
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-4, -5, 2, 0, Math.PI * 2);
+  ctx.arc(4, -5, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth - open, shouting
+  ctx.fillStyle = '#c00';
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-3, 0, 6, 1);
+
+  ctx.restore(); // un-rotate head
+
+  // GUITAR - red, being shredded
+  const strum = Math.sin(frameCount * 0.25) * 3;
+  ctx.fillStyle = '#cc2200';
+  ctx.beginPath();
+  ctx.ellipse(-18, 8 + headBang * 0.2, 8, 10 + strum * 0.5, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a0000';
+  ctx.beginPath();
+  ctx.arc(-18, 8, 3, 0, Math.PI * 2);
+  ctx.fill();
+  // Neck
+  ctx.fillStyle = '#8B4513';
+  ctx.save();
+  ctx.translate(-18, 0);
+  ctx.rotate(-0.5);
+  ctx.fillRect(-2, -16, 4, 16);
+  ctx.fillStyle = '#ddd';
+  ctx.fillRect(-3, -16, 6, 2);
+  ctx.restore();
+  // Strings
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 0.3;
+  for (let s = -2; s <= 2; s++) {
+    ctx.beginPath();
+    ctx.moveTo(-18 + s, -8);
+    ctx.lineTo(-18 + s, 16);
+    ctx.stroke();
+  }
+  // Strum sparks
+  if (Math.abs(strum) > 2) {
+    ctx.fillStyle = '#ffd700';
+    for (let sp = 0; sp < 4; sp++) {
+      ctx.fillRect(-18 + (Math.random()-0.5)*16, 5 + (Math.random()-0.5)*12, 2, 2);
+    }
+  }
+
+  // PHONE - held up high
+  const phoneWave = Math.sin(frameCount * 0.04) * 2;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(14, -8 + phoneWave, 7, 11);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(14, -8 + phoneWave, 7, 11);
+  ctx.fillStyle = '#4488ff';
+  ctx.fillRect(15, -6 + phoneWave, 5, 7);
+
+  ctx.restore(); // un-scale
+
+  // Speech bubble - BIG
+  const bubbleQuote = [
+    'GRANNO DURO!', 'NEWS! NEWS!', 'GRANNO DURO!!', 'NEWS! NEWS!',
+    'GRAAANNO\nDURO!', 'BREAKING\nNEWS!'
+  ][Math.floor(frameCount / 60) % 6];
+  drawSpeechBubble(fx, fy + bob - 45 * scale, bubbleQuote);
+
+  // Legend - compact
   ctx.font = '7px "Press Start 2P"';
-  ctx.fillText('ARROWS=MOVE P=PAUSE M=MUSIC', W / 2, 455);
+  ctx.fillStyle = '#daa520'; ctx.fillText('GRAIN = collect!', W / 2 - 130, 345);
+  ctx.fillStyle = '#8a5800'; ctx.fillText('PILUS = beetle!', W / 2 + 130, 345);
+  ctx.fillStyle = '#ff8800'; ctx.fillText('SGS = inspector!', W / 2 - 130, 363);
+  ctx.fillStyle = '#e94560'; ctx.fillText('FILIPPO = boss!', W / 2 + 130, 363);
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillText('LVL1: CAFE  LVL2: MOST  LVL3: BOSS', W / 2, 385);
+
+  // ===== BIG TAP TO START BUTTON =====
+  const btnY = 420;
+  const btnPulse = Math.sin(frameCount * 0.08) * 0.15 + 0.85;
+  ctx.save();
+  ctx.globalAlpha = btnPulse;
+
+  // Button background
+  ctx.fillStyle = '#e94560';
+  ctx.beginPath();
+  ctx.roundRect(W / 2 - 120, btnY - 18, 240, 40, 12);
+  ctx.fill();
+  // Button border glow
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(W / 2 - 120, btnY - 18, 240, 40, 12);
+  ctx.stroke();
+  // Button text
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('TAP TO START', W / 2, btnY + 7);
+
+  ctx.restore();
+
+  ctx.fillStyle = '#666';
+  ctx.font = '6px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('SWIPE=MOVE  P=PAUSE  M=MUSIC', W / 2, 465);
 }
 
+// Store difficulty button positions for tap detection
+const diffButtons = [];
+
 function drawDifficultyScreen() {
-  ctx.fillStyle = 'rgba(10, 0, 20, 0.95)';
+  ctx.fillStyle = '#12080a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Warm glow
+  const grd = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, 350);
+  grd.addColorStop(0, 'rgba(233, 69, 96, 0.08)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd;
   ctx.fillRect(0, 0, W, H);
 
   ctx.fillStyle = '#e94560';
-  ctx.font = '20px "Press Start 2P"';
+  ctx.font = '18px "Press Start 2P"';
   ctx.textAlign = 'center';
-  ctx.fillText('SELECT', W / 2, 100);
-  ctx.fillText('DIFFICULTY', W / 2, 130);
+  ctx.fillText('SELECT', W / 2, 80);
+  ctx.fillText('DIFFICULTY', W / 2, 108);
 
   const options = [
     { name: 'EASY', desc: '7 lives, slow, chill', color: '#00ff88' },
@@ -1855,36 +2049,47 @@ function drawDifficultyScreen() {
     { name: 'HARD', desc: '3 lives, fast, brutal', color: '#e94560' }
   ];
 
+  diffButtons.length = 0;
+
   options.forEach((opt, i) => {
-    const y = 200 + i * 70;
+    const y = 175 + i * 90;
     const selected = i === difficultySelection;
+    const btnX = W / 2 - 160;
+    const btnW = 320;
+    const btnH = 70;
+
+    diffButtons.push({ x: btnX, y: y - 25, w: btnW, h: btnH, index: i });
+
+    // Big tappable button
+    ctx.fillStyle = selected ? 'rgba(233, 69, 96, 0.2)' : 'rgba(255,255,255,0.03)';
+    ctx.beginPath();
+    ctx.roundRect(btnX, y - 25, btnW, btnH, 10);
+    ctx.fill();
+
+    ctx.strokeStyle = selected ? opt.color : '#444';
+    ctx.lineWidth = selected ? 3 : 1;
+    ctx.beginPath();
+    ctx.roundRect(btnX, y - 25, btnW, btnH, 10);
+    ctx.stroke();
 
     if (selected) {
-      ctx.fillStyle = 'rgba(233, 69, 96, 0.15)';
-      ctx.fillRect(W / 2 - 150, y - 20, 300, 55);
-      ctx.strokeStyle = opt.color;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(W / 2 - 150, y - 20, 300, 55);
-
-      // Arrow
       ctx.fillStyle = '#ffd700';
-      ctx.font = '14px "Press Start 2P"';
-      ctx.fillText('▶', W / 2 - 130, y + 5);
+      ctx.font = '16px "Press Start 2P"';
+      ctx.fillText('▶', btnX + 25, y + 8);
     }
 
-    ctx.fillStyle = selected ? opt.color : '#666';
-    ctx.font = selected ? '16px "Press Start 2P"' : '14px "Press Start 2P"';
-    ctx.fillText(opt.name, W / 2, y);
+    ctx.fillStyle = selected ? opt.color : '#888';
+    ctx.font = selected ? '18px "Press Start 2P"' : '14px "Press Start 2P"';
+    ctx.fillText(opt.name, W / 2, y + 5);
 
-    ctx.fillStyle = selected ? '#aaa' : '#444';
+    ctx.fillStyle = selected ? '#ccc' : '#555';
     ctx.font = '8px "Press Start 2P"';
-    ctx.fillText(opt.desc, W / 2, y + 22);
+    ctx.fillText(opt.desc, W / 2, y + 28);
   });
 
   ctx.fillStyle = '#888';
-  ctx.font = '8px "Press Start 2P"';
-  ctx.fillText('UP/DOWN = SELECT', W / 2, 430);
-  ctx.fillText('START/ENTER = PLAY', W / 2, 450);
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillText('TAP DIFFICULTY OR USE D-PAD + START', W / 2, 455);
 }
 
 function drawGameOverScreen() {
